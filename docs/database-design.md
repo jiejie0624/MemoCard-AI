@@ -38,7 +38,7 @@ Use UUID primary keys for application entities, timestamptz for timestamps, and 
 
 | Table | Important fields and purpose |
 |---|---|
-| users | id, email, password_hash, display_name, created_at. Email is unique after normalization. Passwords are stored only as one-way hashes. |
+| users | id, email, password_hash, display_name, timezone, created_at. Email is unique after normalization. Passwords are stored only as one-way hashes. timezone is an IANA timezone name and defaults to UTC. |
 | documents | id, user_id, original_filename, media_type, storage_key, size_bytes, status, error_message, created_at, updated_at. Status tracks upload and processing progress. The binary file is kept outside PostgreSQL; the storage provider remains undecided. |
 | document_chunks | id, document_id, chunk_index, content, page_number, slide_number, content_hash, created_at. The stable UUID maps to a Chroma record. PostgreSQL keeps the chunk text and source metadata for citations and reindexing; Chroma stores the embedding and a copy of the chunk text for retrieval. |
 | chat_sessions | id, user_id, title, created_at, updated_at. By default, a session searches the current user's ready documents unless a later decision adds per-session document selection. |
@@ -46,7 +46,7 @@ Use UUID primary keys for application entities, timestamptz for timestamps, and 
 | message_citations | message_id, document_chunk_id, rank, excerpt, page_number, slide_number. Connects an assistant response to the retrieved sources and source locations used to generate it. |
 | flashcards | id, user_id, source_message_id (nullable), question, answer, repetition_count, ease_factor, interval_days, last_reviewed_at, next_review_at, created_at, updated_at. The scheduling fields hold the current SM-2 state. |
 | flashcard_sources | flashcard_id, document_id, optional document_chunk_id. Allows a card to have multiple source documents and chunks. |
-| flashcard_reviews | id, flashcard_id, quality (SM-2 score 0-5), reviewed_at, and before/after scheduling values. This is the history of review events. |
+| flashcard_reviews | id, flashcard_id, quality (SM-2 score 0-5), reviewed_at, idempotency_key, and before/after scheduling values. This is the history of review events. |
 
 ### Revision calendar
 
@@ -80,7 +80,7 @@ The sequence must account for partial failure because PostgreSQL and Chroma cann
 4. What document deletion policy should preserve or remove existing citations and flashcard sources?
 5. Should the proposal's one-click flashcard generation, TTS, tagging, and 15-student SUS/accuracy evaluation be tracked as post-MVP requirements? The current AGENTS.md places TTS and tagging after the MVP but does not define the research evaluation work.
 
-No schema, migration, external service, application code, or package dependency is created by this proposal.
+The follow-up migration database/migrations/003_flashcard_review_timezone.sql adds users.timezone and a per-user flashcard review idempotency key. It has been created locally but has not been applied to Neon. No external storage service or new runtime package is selected by this proposal.
 
 ## 7. Official deployment references
 
