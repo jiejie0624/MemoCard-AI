@@ -32,7 +32,13 @@ class FakeAuthRepository:
         self.users: dict[str, dict] = {}
         self.sessions: dict[str, dict] = {}
 
-    def create_user(self, email: str, encoded_password: str, display_name: str) -> dict:
+    def create_user(
+        self,
+        email: str,
+        encoded_password: str,
+        display_name: str,
+        timezone_name: str = "UTC",
+    ) -> dict:
         if email in self.users:
             raise DuplicateEmailError
         user = {
@@ -40,6 +46,7 @@ class FakeAuthRepository:
             "email": email,
             "password_hash": encoded_password,
             "display_name": display_name,
+            "timezone": timezone_name,
             "created_at": datetime.now(timezone.utc),
         }
         self.users[email] = user
@@ -63,10 +70,18 @@ class FakeAuthRepository:
         if token_hash in self.sessions:
             self.sessions[token_hash]["revoked"] = True
 
-    def update_display_name(self, user_id: UUID, display_name: str) -> dict | None:
+    def update_profile(
+        self,
+        user_id: UUID,
+        display_name: str | None,
+        timezone_name: str | None,
+    ) -> dict | None:
         user = next((u for u in self.users.values() if u["id"] == user_id), None)
         if user is not None:
-            user["display_name"] = display_name
+            if display_name is not None:
+                user["display_name"] = display_name
+            if timezone_name is not None:
+                user["timezone"] = timezone_name
         return user
 
 
@@ -91,6 +106,7 @@ class AuthenticationTests(unittest.TestCase):
             user = register(self.registration, response, self.repository)
         self.assertEqual(user.email, "student@example.edu")
         self.assertEqual(user.display_name, "Student")
+        self.assertEqual(user.timezone, "UTC")
         cookie_header = response.headers["set-cookie"].lower()
         self.assertIn("httponly", cookie_header)
         self.assertIn("secure", cookie_header)
@@ -121,6 +137,13 @@ class AuthenticationTests(unittest.TestCase):
 
         updated = update_profile(ProfileUpdate(display_name="New Name"), current, self.repository)
         self.assertEqual(updated.display_name, "New Name")
+
+        timezone_updated = update_profile(
+            ProfileUpdate(timezone="Asia/Kuala_Lumpur"),
+            current,
+            self.repository,
+        )
+        self.assertEqual(timezone_updated.timezone, "Asia/Kuala_Lumpur")
 
         with patch.dict(os.environ, {"APP_ENV": "development"}):
             logout_response = Response()
@@ -154,6 +177,7 @@ class AuthenticationTests(unittest.TestCase):
                 "/api/auth/login",
                 "/api/auth/logout",
                 "/api/auth/me",
+                "/api/flashcards/{flashcard_id}/reviews",
             },
         )
 

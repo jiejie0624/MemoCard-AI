@@ -21,16 +21,22 @@ class PostgresAuthRepository:
         # Neon pooled URLs are supplied through DATABASE_URL in serverless deployments.
         return psycopg.connect(database_url, row_factory=dict_row)
 
-    def create_user(self, email: str, password_hash: str, display_name: str) -> dict:
+    def create_user(
+        self,
+        email: str,
+        password_hash: str,
+        display_name: str,
+        timezone_name: str = "UTC",
+    ) -> dict:
         try:
             with self._connect() as connection:
                 user = connection.execute(
                     """
-                    INSERT INTO users (id, email, password_hash, display_name)
-                    VALUES (%s, %s, %s, %s)
-                    RETURNING id, email, display_name, created_at
+                    INSERT INTO users (id, email, password_hash, display_name, timezone)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id, email, display_name, timezone, created_at
                     """,
-                    (uuid4(), email, password_hash, display_name),
+                    (uuid4(), email, password_hash, display_name, timezone_name),
                 ).fetchone()
                 return user
         except psycopg.errors.UniqueViolation as error:
@@ -40,7 +46,7 @@ class PostgresAuthRepository:
         with self._connect() as connection:
             return connection.execute(
                 """
-                SELECT id, email, password_hash, display_name, created_at
+                SELECT id, email, password_hash, display_name, timezone, created_at
                 FROM users WHERE email = %s
                 """,
                 (email,),
@@ -63,7 +69,7 @@ class PostgresAuthRepository:
         with self._connect() as connection:
             return connection.execute(
                 """
-                SELECT users.id, users.email, users.display_name, users.created_at
+                SELECT users.id, users.email, users.display_name, users.timezone, users.created_at
                 FROM auth_sessions
                 JOIN users ON users.id = auth_sessions.user_id
                 WHERE auth_sessions.token_hash = %s
@@ -83,14 +89,21 @@ class PostgresAuthRepository:
                 (token_hash,),
             )
 
-    def update_display_name(self, user_id: UUID, display_name: str) -> dict | None:
+    def update_profile(
+        self,
+        user_id: UUID,
+        display_name: str | None,
+        timezone_name: str | None,
+    ) -> dict | None:
         with self._connect() as connection:
             return connection.execute(
                 """
                 UPDATE users
-                SET display_name = %s, updated_at = now()
+                SET display_name = COALESCE(%s, display_name),
+                    timezone = COALESCE(%s, timezone),
+                    updated_at = now()
                 WHERE id = %s
-                RETURNING id, email, display_name, created_at
+                RETURNING id, email, display_name, timezone, created_at
                 """,
-                (display_name, user_id),
+                (display_name, timezone_name, user_id),
             ).fetchone()

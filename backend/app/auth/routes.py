@@ -3,9 +3,10 @@ import os
 from datetime import datetime, timedelta
 from typing import Annotated
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from backend.app.auth.repository import DuplicateEmailError, PostgresAuthRepository
 from backend.app.auth.security import (
@@ -35,6 +36,7 @@ class Credentials(BaseModel):
 
 class Registration(Credentials):
     display_name: str = Field(min_length=1, max_length=100)
+    timezone: str = Field(default="UTC", min_length=1, max_length=100)
 
     @field_validator("display_name")
     @classmethod
@@ -43,25 +45,56 @@ class Registration(Credentials):
         if not value:
             raise ValueError("Display name cannot be blank")
         return value
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        return _validated_timezone(value)
 
 
 class ProfileUpdate(BaseModel):
-    display_name: str = Field(min_length=1, max_length=100)
+    display_name: str | None = Field(default=None, min_length=1, max_length=100)
+    timezone: str | None = Field(default=None, min_length=1, max_length=100)
 
     @field_validator("display_name")
     @classmethod
-    def trim_display_name(cls, value: str) -> str:
+    def trim_display_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         value = value.strip()
         if not value:
             raise ValueError("Display name cannot be blank")
         return value
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str | None) -> str | None:
+        return _validated_timezone(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def require_at_least_one_change(self) -> "ProfileUpdate":
+        if self.display_name is None and self.timezone is None:
+            raise ValueError("At least one profile field must be provided")
+        return self
 
 
 class PublicUser(BaseModel):
     id: UUID
     email: str
     display_name: str
+    timezone: str
     created_at: datetime
+
+
+def _validated_timezone(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("Timezone cannot be blank")
+    try:
+        ZoneInfo(normalized)
+    except ZoneInfoNotFoundError as error:
+        raise ValueError("Use a valid IANA timezone") from error
+    return normalized
 
 
 def get_repository() -> PostgresAuthRepository:
@@ -113,6 +146,7 @@ def register(payload: Registration, response: Response, repository: Repository) 
             payload.email,
             hash_password(payload.password),
             payload.display_name,
+            payload.timezone,
         )
     except DuplicateEmailError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email is already registered") from error
@@ -160,7 +194,7 @@ def update_profile(
     user: Annotated[PublicUser, Depends(current_user)],
     repository: Repository,
 ) -> PublicUser:
-    updated = repository.update_display_name(user.id, payload.display_name)
+    updated = repository.update_profile(user.id, payload.display_name, payload.timezone)
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return PublicUser.model_validate(updated)
