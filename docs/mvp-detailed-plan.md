@@ -1,13 +1,13 @@
 # MemoCard AI：MVP 产品、页面与算法详细规划
 
-**状态：** 提案稿，等待开发者审核。本文件不批准代码实现、数据库迁移、依赖安装、外部服务开通或 Git Commit / Push。
+**状态：** MVP 规划已获批准；每个模块仍需单独实现、测试和开发者审核，然后创建本地 Commit。Push 仍需另行批准。
 **依据：** AGENTS.md、docs/frontend-design.md、docs/database-design.md、当前数据库迁移和工作区代码。
 
 ## 0. 当前实际完成情况
 
-项目已有 React/Vite 底座、登录/注册/会话恢复/个人资料页面、登录后首页外壳；后端已有 FastAPI 认证 API 和 PostgreSQL 会话实现。数据库迁移已定义 users、auth_sessions、documents、document_chunks、chat_sessions、chat_messages、message_citations、flashcards、flashcard_sources、flashcard_reviews。
+项目已有 React/Vite 底座、登录/注册/会话恢复/个人资料页面、登录后首页外壳和学习资料页；后端已有 FastAPI 认证 API、PostgreSQL 会话实现，以及带所有权检查的资料上传/下载/软删除 API。数据库迁移已定义 users、auth_sessions、documents、document_chunks、chat_sessions、chat_messages、message_citations、flashcards、flashcard_sources、flashcard_reviews。
 
-SM-2 纯函数已在本地 Commit 310c7dd；评分 API、PostgreSQL 事务、幂等键和时区资料字段已在工作区完成代码并通过本地测试，迁移 003 尚未应用到任何 Neon 数据库。资料、问答、闪卡、复习页面和日历页面尚未实现；文档提取、Chroma 索引、DeepSeek RAG 和闪卡生成也尚未实现。Neon 生产连接、Chroma 生产部署、文件存储和真实 DeepSeek 调用尚未验证或接通。浏览器此前显示的演示账号和内容只是本地预览数据，不代表 Neon 有真实账号或记录。
+SM-2 纯函数已在本地 Commit 310c7dd；评分 API、PostgreSQL 事务、幂等键和时区资料字段已在本地 Commit 97cc40d。资料上传/列表/下载/软删除模块已在工作区实现并通过本地 API 测试，数据库迁移 004 尚未应用；本模块尚待开发者审核和 Commit。迁移 003、004 均未应用到 Neon。资料解析、Chroma 索引、DeepSeek RAG、闪卡生成、复习 UI 和日历 UI 尚未实现。Neon 生产连接、Vercel Blob 存储、Chroma 生产部署和真实 DeepSeek 调用尚未验证或接通。浏览器此前显示的演示账号和内容只是本地预览数据，不代表 Neon 有真实账号或记录。
 
 所以本文件描述将要做的 MVP，不宣称这些功能已经完成。
 
@@ -68,7 +68,7 @@ PG 与 Chroma 不能用同一事务，索引和删除须幂等、可重试。稳
 
 现有迁移有软删除、页/幻灯片定位、SM-2 状态和评分前后快照。迁移 003 新增 users.timezone（IANA 名称、默认 UTC）与 flashcard_reviews.idempotency_key（按用户唯一，并以历史 review 的 id 回填）。迁移文件尚未应用到 Neon。不增加 revision_schedules 表，日历从 next_review_at 派生。
 
-文件二进制应放私有耐久对象存储，数据库只存 storage_key；不放 Vercel 临时磁盘。当前 file_format check 为 pdf/txt/ppt，而 python-pptx 面向 .pptx；实现前需决定迁移支持 pptx（建议）还是处理另一种已可处理的格式。旧式 ppt 需转换能力，不能视为自动兼容。首版 PDF 仅保证文本层解析；扫描 PDF 没有文字时要报告需 OCR。[python-pptx 文档](https://python-pptx.readthedocs.io/en/latest/user/quickstart.html)、[pypdf 文本提取说明](https://pypdf.readthedocs.io/en/latest/user/extract-text.html)。
+文件二进制放私有 Vercel Blob，数据库只存 `storage_key`；不放 Vercel 临时磁盘。上传先支持 PDF、UTF-8 TXT、PPTX，单文件最大 4 MiB；SQL 约束保留已有旧式 PPT 元数据，但 API 不接受新的 `.ppt` 文件。旧式 PPT 需转换能力，不能视为自动兼容。首版 PDF 仅保证文本层解析；扫描 PDF 没有文字时要报告需 OCR。[python-pptx 文档](https://python-pptx.readthedocs.io/en/latest/user/quickstart.html)、[pypdf 文本提取说明](https://pypdf.readthedocs.io/en/latest/user/extract-text.html)。
 
 建议关系图：
 
@@ -93,15 +93,15 @@ erDiagram
 ## 5. 上传、切块与 RAG
 
 ### 上传/处理生命周期
-状态建议：uploaded → processing → ready；失败到 failed，可人工重试；删除到 deleted 并立即禁止新检索。
+状态：uploaded → processing → ready；失败到 failed。删除先进入 `deleting` 并立即禁止新检索，完成存储清理后变成 `deleted`；清理失败时可重试。
 
-1. 验证会话、大小、扩展名、MIME 和实际文件签名。文件名仅用于显示，存储 key 使用随机 ID。
-2. 文件成功写入耐久存储后创建 PostgreSQL 行并返回已接收。
+1. 验证会话、大小、扩展名和实际文件签名。文件名仅用于显示，私有存储路径由服务端按用户 ID 和随机 ID 生成。
+2. 文件成功写入私有 Blob 后创建 PostgreSQL 行并返回已接收。若数据库写入失败，服务端尝试移除刚上传的 Blob。
 3. 提取文本并记录页码/幻灯片号；损坏、超限、空内容给可读失败原因。
 4. 规范空白，按标题/段落/页面边界分块。起始实验值每块约 450–650 embedding tokens、重叠 60–100 tokens，再用中英样本评估；不跨页面合并定位。具体值按已选 tokenizer 调整。
 5. PostgreSQL 存稳定 UUID、顺序、内容、位置、content hash。
 6. 为 chunk 生成 embedding，按 UUID upsert 到 Chroma，写入所有权、位置和模型版本 metadata。
-7. 核对 PG/Chroma 后才标 ready；部分失败保留错误并可重试。删除先在 PG 排除，后清 Chroma/文件。当前没有 deleting 状态；要持久追踪清理任务需审批 Schema。
+7. 核对 PG/Chroma 后才标 ready；部分失败保留错误并可重试。删除先将 PG 状态设为 `deleting`，再清 Blob 与 Chroma；若存储清理失败，保留状态和安全错误提示，允许重试。检索端只查询 `ready` 文档。
 
 ### 检索与生成
 - 先由已认证用户查询 PostgreSQL 中 ready 文件 ID；指定资料时与用户允许的 ID 取交集。
@@ -175,8 +175,8 @@ Embedding 模型仍待选。Chroma 不替项目确定适用中英课程的模型
 - 写操作检查请求来源，沿用 HttpOnly/SameSite/Secure cookie；若拆分域名需重新审核 CORS/CSRF。
 - DeepSeek key、Neon 地址、Chroma 凭据、上传 token 仅服务端使用，禁止写入 VITE_*。
 - 上传校验扩展名/MIME/签名、大小、页数、处理时长和解压内容限制。
-- Vercel Functions request/response body 上限是 4.5 MB，直传大文件不适合经过 FastAPI 函数。[限制说明](https://vercel.com/docs/functions/limitations)。Vercel Blob 可用客户端授权上传，但它是新增服务且未批准。[Blob client uploads](https://vercel.com/docs/vercel-blob/client-upload)。
-- 方案 A：文件限制约 4 MB，由 FastAPI 上传，简单但上限紧。方案 B：审批私有对象存储（候选 Vercel Blob）浏览器直传，服务端签发受控 token、校验完成后建索引。当前 Python 后端需要核实 Node token handler 的同部署方案；依赖或服务先讨论。
+- Vercel Functions request/response body 上限是 4.5 MB；所选 FastAPI 服务端上传将每个文件限制为 4 MiB，留出 multipart 请求开销。[限制说明](https://vercel.com/docs/functions/limitations)。
+- 用户资料保存在私有 Vercel Blob，由 Python SDK 上传和读取；API 根据会话与 PostgreSQL 所有权检查后代理下载。Vercel 项目仍需创建并连接私有 Blob Store，线上上传尚不能运行。[Python 私有 Blob 指南](https://vercel.com/kb/guide/python-and-vercel-blob)。
 - 文档解析和模型调用可能超时；先限制文件、把步骤做成可重试并实测，再决定是否加队列/worker。Vercel Python runtime 文档目前标 Beta，上线前重核限制。[Python runtime](https://vercel.com/docs/functions/runtimes/python)。
 - Neon 用合适连接策略，环境凭据分离；不将 DATABASE_URL 提交或回显。
 - 生产 Chroma 需 HTTPS/服务端身份验证，需有可重建/备份方案；Chroma Cloud 与自管未定。
@@ -185,10 +185,10 @@ Embedding 模型仍待选。Chroma 不替项目确定适用中英课程的模型
 ## 10. 分阶段计划与验收
 
 ### 0. 方案审核
-确认页面、Schema 差异、PPT/PPTX、文件存储、Chroma、embedding、评分和删除策略。当前 branch 是 feature/authentication；保留现有未审核工作区更改，不切分支、不提交。
+页面和核心规划已审核；文档存储确定为私有 Vercel Blob，支持 PDF/TXT/PPTX，最大 4 MiB。Chroma 部署、embedding、聊天资料范围和引用保留细节仍待相应模块实施前讨论。当前 branch 是 feature/authentication；保留现有未审核工作区更改，不切分支、不 Push。
 
 ### 1. 文件存储与资料管理
-范围预计 backend/app/documents、backend/app/storage、API 路由、资料列表/上传/详情 UI；获批后才加迁移/依赖。验收：文件限制准确、上传状态真实、归属正确、软删除立即排除检索、失败可重试。
+范围包括 backend/app/documents、backend/app/storage、API 路由、资料列表/上传 UI、requirements.txt 和迁移 004。代码已在工作区实现；本地 API 测试通过，尚未连接 Neon 或 Vercel Blob，也待开发者审核。验收：文件限制准确、上传状态真实、归属正确、软删除立即排除检索、存储清理失败可重试。
 
 ### 2. 解析、分块、Chroma
 范围预计 backend/app/processing、backend/app/vectorstore 和已批准依赖。验收：页/幻灯片定位准确；重试无重复向量；损坏/空文件有清楚错误；跨用户不串数据；删除后不可检索。
@@ -200,7 +200,7 @@ Embedding 模型仍待选。Chroma 不替项目确定适用中英课程的模型
 范围预计 backend/app/flashcards、生成/CRUD API 和编辑 UI。验收：JSON/来源验证；草稿确认前不入库；可编辑删除；来源关系正确。
 
 ### 5. SM-2 复习
-核心纯函数已提交；评分 API、PostgreSQL 事务、个人时区和幂等迁移已在工作区实现，待用户审核以及目标数据库应用迁移。单卡 UI 尚未实现。验收：q=0…5 表格计算、EF 下限、1/6 天间隔、失败重置、重复请求、并发和时区边界正确。
+核心纯函数已提交；评分 API、PostgreSQL 事务、个人时区和幂等迁移已提交到本地分支，尚未应用到目标数据库。单卡 UI 尚未实现。验收：q=0…5 表格计算、EF 下限、1/6 天间隔、失败重置、重复请求、并发和时区边界正确。
 
 ### 6. 首页和日历接真数据
 首页摘要与日历走真实 API。验收：逾期/今天/未来按本地时区正确；空/错/加载状态完善；无硬编码统计。
@@ -214,22 +214,19 @@ Embedding 模型仍待选。Chroma 不替项目确定适用中英课程的模型
 
 建议提交信息：feat: add document upload and status tracking；feat: index document chunks in Chroma；feat: add cited RAG chat；feat: generate editable flashcard drafts；feat: implement SM-2 review scheduling；feat: add timezone-aware revision calendar。
 
-规划完成不等于功能完成；本文件尚未提交。
+规划完成不等于功能完成；模块实现情况按上方状态逐项记录。
 
 ## 12. 需要开发者决定的事项
 
 以下只提建议，不会擅自实施：
 
-1. 上传选择私有 Vercel Blob 浏览器直传，还是单文件约 4 MB 上限？
-2. 是否迁移支持 .pptx，并排除旧式 .ppt？
-3. 生产选 Chroma Cloud 还是自管受保护 Chroma Server？
-4. 选哪款中英 embedding？课程材料能否传给第三方？
-5. 首版扫描 PDF 不做 OCR 并提示，是否接受？
-6. 主评分放 q=0/3/4/5 加精确评分 q=1/2，还是常驻六档？
-7. 是否只允许对已到期卡评分？
-8. 删除资料后保留聊天/卡片来源快照并清理文件/向量，还是连学习历史一起删除？
-9. 时区是否以系统检测为默认，允许个人资料中修改 IANA 时区？
-10. MVP 是否要逐字流式聊天？建议先做稳定完整回答、引用、取消/重试，再单独评审流式。
+1. 生产选 Chroma Cloud 还是自管受保护 Chroma Server？
+2. 选哪款中英 embedding？课程材料能否传给第三方？
+3. 首版扫描 PDF 不做 OCR 并提示，是否接受？
+4. 主评分放 q=0/3/4/5 加精确评分 q=1/2，还是常驻六档？
+5. 是否只允许对已到期卡评分？
+6. 删除资料后保留聊天/卡片来源快照并清理文件/向量，还是连学习历史一起删除？
+7. MVP 是否要逐字流式聊天？建议先做稳定完整回答、引用、取消/重试，再单独评审流式。
 
 默认建议是先审页面和产品逻辑；数据库变更、额外依赖、外部服务、代码仍逐项审批。
 
@@ -241,6 +238,7 @@ Embedding 模型仍待选。Chroma 不替项目确定适用中英课程的模型
 - [Neon Connection Pooling](https://neon.com/docs/connect/connection-pooling)
 - [DeepSeek API](https://api-docs.deepseek.com/quick_start/agent_integrations/)
 - [Vercel Function Limits](https://vercel.com/docs/functions/limitations)
+- [Private Vercel Blob storage with Python](https://vercel.com/kb/guide/python-and-vercel-blob)
 - [Vercel Blob Client Uploads](https://vercel.com/docs/vercel-blob/client-upload)
 - [Vercel Python Runtime](https://vercel.com/docs/functions/runtimes/python)
 - [pypdf Text Extraction](https://pypdf.readthedocs.io/en/latest/user/extract-text.html)

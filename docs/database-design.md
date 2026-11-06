@@ -9,7 +9,7 @@
 - **Backend:** Python + FastAPI hosted on Vercel Functions. Vercel currently documents the Python runtime as Beta. Function duration and package limits depend on the Vercel plan and configuration.
 - **Relational database:** Neon PostgreSQL. Application traffic should use Neon's pooled connection endpoint. Schema migration and administrative workflows may need a separate direct connection. Store connection strings as deployment secrets, never in Git.
 - **Vector database:** ChromaDB remains the selected vector database. Chroma's local persistent client is intended for development and testing; production should connect to a server-backed Chroma deployment. A hosted Chroma service or separately hosted Chroma server has not been selected.
-- **Uploaded file storage:** Vercel Function request bodies are limited to 4.5 MB, and function-local files are not durable storage. The MVP therefore needs a durable upload-storage decision before implementing document upload. Vercel Blob is one possible option, but it is an additional service and is not approved or selected here.
+- **Uploaded file storage:** Private Vercel Blob is selected for user documents. FastAPI uploads files through the Vercel Python SDK; the MVP caps each upload at 4 MiB to stay below Vercel Function's 4.5 MB request-body limit. Function-local files are not used for durable storage.
 
 Long-running document extraction and indexing must fit the configured Vercel Function duration or be split into retryable steps. This document does not add a queue or background-job service.
 
@@ -39,7 +39,7 @@ Use UUID primary keys for application entities, timestamptz for timestamps, and 
 | Table | Important fields and purpose |
 |---|---|
 | users | id, email, password_hash, display_name, timezone, created_at. Email is unique after normalization. Passwords are stored only as one-way hashes. timezone is an IANA timezone name and defaults to UTC. |
-| documents | id, user_id, original_filename, media_type, storage_key, size_bytes, status, error_message, created_at, updated_at. Status tracks upload and processing progress. The binary file is kept outside PostgreSQL; the storage provider remains undecided. |
+| documents | id, user_id, original_filename, file_format, storage_key, size_bytes, status, error_message, created_at, updated_at, deleted_at. Status tracks upload and processing progress. The binary file is kept in private Vercel Blob; PostgreSQL stores its private pathname and metadata. |
 | document_chunks | id, document_id, chunk_index, content, page_number, slide_number, content_hash, created_at. The stable UUID maps to a Chroma record. PostgreSQL keeps the chunk text and source metadata for citations and reindexing; Chroma stores the embedding and a copy of the chunk text for retrieval. |
 | chat_sessions | id, user_id, title, created_at, updated_at. By default, a session searches the current user's ready documents unless a later decision adds per-session document selection. |
 | chat_messages | id, session_id, role, content, created_at. Roles are user or assistant; messages share the same ordered conversation. |
@@ -72,15 +72,14 @@ Do not create a separate revision_schedules table for the MVP. The current sched
 
 The sequence must account for partial failure because PostgreSQL and Chroma cannot participate in one transaction.
 
-## 6. Decisions to settle before implementation
+## 6. Decisions to settle before their implementation phase
 
-1. Which durable file-storage service will hold uploaded PDFs, TXT, and PPT files?
-2. Will production Chroma be hosted by a managed Chroma service or by a separately operated Chroma server?
-3. Should chat search all of a user's ready documents, or should each session select a subset?
-4. What document deletion policy should preserve or remove existing citations and flashcard sources?
-5. Should the proposal's one-click flashcard generation, TTS, tagging, and 15-student SUS/accuracy evaluation be tracked as post-MVP requirements? The current AGENTS.md places TTS and tagging after the MVP but does not define the research evaluation work.
+1. Will production Chroma be hosted by a managed Chroma service or by a separately operated Chroma server?
+2. Should chat search all of a user's ready documents, or should each session select a subset?
+3. What document deletion policy should preserve or remove existing citations and flashcard sources?
+4. Should the proposal's one-click flashcard generation, TTS, tagging, and 15-student SUS/accuracy evaluation be tracked as post-MVP requirements? The current AGENTS.md places TTS and tagging after the MVP but does not define the research evaluation work.
 
-The follow-up migration database/migrations/003_flashcard_review_timezone.sql adds users.timezone and a per-user flashcard review idempotency key. It has been created locally but has not been applied to Neon. No external storage service or new runtime package is selected by this proposal.
+Migration 003 adds users.timezone and a per-user flashcard review idempotency key; migration 004 adds PPTX and a retryable document-deletion state. Both files exist locally and have not been applied to Neon. The Vercel Blob store still needs to be created and connected in the Vercel project before live uploads can run.
 
 ## 7. Official deployment references
 

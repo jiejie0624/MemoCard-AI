@@ -1,3 +1,5 @@
 fastapi==0.162.0
 psycopg[binary]==3.3.8
 pwdlib[argon2]==0.3.1
+python-multipart==0.0.33
+vercel-blob==0.5.1

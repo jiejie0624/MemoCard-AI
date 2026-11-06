@@ -177,6 +177,9 @@ class AuthenticationTests(unittest.TestCase):
                 "/api/auth/login",
                 "/api/auth/logout",
                 "/api/auth/me",
+                "/api/documents",
+                "/api/documents/{document_id}",
+                "/api/documents/{document_id}/file",
                 "/api/flashcards/{flashcard_id}/reviews",
             },
         )
