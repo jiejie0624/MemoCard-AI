@@ -1,0 +1,1 @@
+"""MemoCard AI backend package."""
