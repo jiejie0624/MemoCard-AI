@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiUrl } from "../api.js";
+import { useLanguage } from "../i18n.jsx";
 
 const PENDING_REVIEW_KEY = "memocard.pending-review.v1";
 const QUALITY_OPTIONS = [
@@ -49,11 +50,12 @@ function makeIdempotencyKey() {
   throw new Error("当前浏览器无法安全创建复习请求，请更新浏览器后重试。");
 }
 
-function formatDate(value) {
-  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "long" }).format(new Date(value));
+function formatDate(value, locale) {
+  return new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(new Date(value));
 }
 
 export default function ReviewPage() {
+  const { t, locale } = useLanguage();
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [revealed, setRevealed] = useState(false);
@@ -103,7 +105,7 @@ export default function ReviewPage() {
         return;
       }
     } else if (requestState.quality !== quality) {
-      setError("上次评分尚未确认保存，请用相同评分重试，避免重复记账。");
+      setError(t("上次评分尚未确认保存，请用相同评分重试，避免重复记账。"));
       return;
     }
 
@@ -133,44 +135,44 @@ export default function ReviewPage() {
     <main className="review-page">
       <header className="review-page-heading">
         <div>
-          <p className="eyebrow">MEMOCARD AI · 间隔复习</p>
-          <h1>今日复习</h1>
-          <p>先回想答案，再按记忆难度评分，系统会安排下一次复习。</p>
+          <p className="eyebrow">{t("MEMOCARD AI · 间隔复习")}</p>
+          <h1>{t("今日复习")}</h1>
+          <p>{t("先回想答案，再按记忆难度评分，系统会安排下一次复习。")}</p>
         </div>
         {!loading && !error && sessionTotal > 0 && (
           <div className="review-progress" aria-live="polite">
-            <strong>{sessionTotal - dueCards.length + (currentCard ? 1 : 0)}</strong> / {sessionTotal} 张
+            <strong>{sessionTotal - dueCards.length + (currentCard ? 1 : 0)}</strong> / {sessionTotal} {t("张")}
           </div>
         )}
       </header>
 
       {error && (
         <div className="review-error" role="alert">
-          <span>{error}</span>
-          {error.includes("刷新列表") && <button className="text-button" type="button" onClick={loadCards}>刷新复习列表</button>}
+          <span>{t(error)}</span>
+          {error.includes("刷新列表") && <button className="text-button" type="button" onClick={loadCards}>{t("刷新复习列表")}</button>}
         </div>
       )}
-      {loading ? <p className="review-status" role="status">正在整理待复习卡片…</p> : error && !currentCard ? (
+      {loading ? <p className="review-status" role="status">{t("正在整理待复习卡片…")}</p> : error && !currentCard ? (
         <section className="review-empty">
-          <h2>暂时无法加载复习内容</h2>
-          <button className="secondary-button" type="button" onClick={loadCards}>重新加载</button>
+          <h2>{t("暂时无法加载复习内容")}</h2>
+          <button className="secondary-button" type="button" onClick={loadCards}>{t("重新加载")}</button>
         </section>
       ) : currentCard ? (
         <section className="review-session" aria-labelledby="review-question-title">
           <div className="review-session-meta">
-            <span>第 {sessionTotal - dueCards.length + 1} 张</span>
+            <span>{t("第 {count} 张", { count: sessionTotal - dueCards.length + 1 })}</span>
             {currentCard.sources?.[0]?.document_name && <span>{currentCard.sources[0].document_name}</span>}
           </div>
           <article className="review-flashcard" aria-live="polite">
-            <p className="eyebrow">{revealed ? "答案" : "问题"}</p>
+            <p className="eyebrow">{revealed ? t("答案") : t("问题")}</p>
             <h2 id="review-question-title">{revealed ? currentCard.answer : currentCard.question}</h2>
-            {!revealed && <button className="primary-button" type="button" onClick={() => setRevealed(true)}>显示答案</button>}
+            {!revealed && <button className="primary-button" type="button" onClick={() => setRevealed(true)}>{t("显示答案")}</button>}
           </article>
 
           {revealed && (
             <section className="review-rating" aria-labelledby="review-rating-title">
-              <h3 id="review-rating-title">你记得怎么样？</h3>
-              <p>0–2 表示没能回忆，3–5 表示答对；评分会调整下一次复习间隔。</p>
+              <h3 id="review-rating-title">{t("你记得怎么样？")}</h3>
+              <p>{t("0–2 表示没能回忆，3–5 表示答对；评分会调整下一次复习间隔。")}</p>
               <div className="review-quality-options">
                 {QUALITY_OPTIONS.map(({ quality, label }) => {
                   const retryBlocked = pendingForCurrent && pendingReview.quality !== quality;
@@ -180,11 +182,11 @@ export default function ReviewPage() {
                       key={quality}
                       type="button"
                       disabled={submittingQuality !== null || retryBlocked}
-                      aria-label={`${quality} 分：${label}`}
+                      aria-label={t("{score} 分：{label}", { score: quality, label: t(label) })}
                       onClick={() => submitReview(quality)}
                     >
                       <strong>{quality}</strong>
-                      <span>{submittingQuality === quality ? "保存中…" : pendingForCurrent && pendingReview.quality === quality ? "重试" : label}</span>
+                      <span>{submittingQuality === quality ? t("保存中…") : pendingForCurrent && pendingReview.quality === quality ? t("重试") : t(label)}</span>
                     </button>
                   );
                 })}
@@ -195,11 +197,11 @@ export default function ReviewPage() {
       ) : (
         <section className="review-empty">
           <span className="review-empty-mark" aria-hidden="true">✓</span>
-          <h2>{cards.length ? "今天的复习完成了" : "还没有可复习的闪卡"}</h2>
+          <h2>{cards.length ? t("今天的复习完成了") : t("还没有可复习的闪卡")}</h2>
           <p>{cards.length
-            ? `全部完成。下一张卡片安排在 ${formatDate(cards.reduce((soonest, card) => new Date(card.next_review_at) < new Date(soonest.next_review_at) ? card : soonest).next_review_at)}。`
-            : "先去 AI 问答中生成并保存闪卡，卡片到期后会出现在这里。"}</p>
-          <button className="secondary-button" type="button" onClick={loadCards}>刷新复习列表</button>
+            ? t("全部完成。下一张卡片安排在 {date}。", { date: formatDate(cards.reduce((soonest, card) => new Date(card.next_review_at) < new Date(soonest.next_review_at) ? card : soonest).next_review_at, locale) })
+            : t("先去 AI 问答中生成并保存闪卡，卡片到期后会出现在这里。")}</p>
+          <button className="secondary-button" type="button" onClick={loadCards}>{t("刷新复习列表")}</button>
         </section>
       )}
     </main>

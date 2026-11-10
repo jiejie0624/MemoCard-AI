@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiUrl } from "../api.js";
+import { useLanguage } from "../i18n.jsx";
 
 async function requestCards(path, options = {}) {
   const response = await fetch(apiUrl(`/api/flashcards${path}`), {
@@ -16,11 +17,12 @@ async function requestCards(path, options = {}) {
   return payload;
 }
 
-function displayDueDate(value) {
-  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(value));
+function displayDueDate(value, locale) {
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(value));
 }
 
 export default function FlashcardsPage() {
+  const { t, locale } = useLanguage();
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -87,42 +89,42 @@ export default function FlashcardsPage() {
     <main className="flashcards-page">
       <header className="flashcards-heading">
         <div>
-          <p className="eyebrow">MEMOCARD AI · 知识卡片</p>
-          <h1>闪卡</h1>
-          <p>管理从学习问答中保存的卡片；复习与排期稍后接入。</p>
+          <p className="eyebrow">{t("MEMOCARD AI · 知识卡片")}</p>
+          <h1>{t("闪卡")}</h1>
+          <p>{t("管理从学习问答中保存的卡片；复习与排期稍后接入。")}</p>
         </div>
-        <div className="flashcards-summary" aria-label="闪卡统计">
-          <span><strong>{cards.length}</strong> 张卡片</span>
-          <span><strong>{dueCount}</strong> 张待复习</span>
+        <div className="flashcards-summary" aria-label={t("闪卡统计")}>
+          <span><strong>{cards.length}</strong> {t("张卡片")}</span>
+          <span><strong>{dueCount}</strong> {t("张待复习")}</span>
         </div>
       </header>
 
-      {error && <p className="flashcards-error" role="alert">{error}</p>}
-      {loading ? <p className="flashcards-status" role="status">正在加载闪卡…</p> : !cards.length ? (
+      {error && <p className="flashcards-error" role="alert">{t(error)}</p>}
+      {loading ? <p className="flashcards-status" role="status">{t("正在加载闪卡…")}</p> : !cards.length ? (
         <section className="flashcards-empty">
           <span aria-hidden="true">✦</span>
-          <h2>还没有保存的闪卡</h2>
-          <p>在 AI 问答中选择一条有资料引用的回答，生成并保存闪卡草稿。</p>
+          <h2>{t("还没有保存的闪卡")}</h2>
+          <p>{t("在 AI 问答中选择一条有资料引用的回答，生成并保存闪卡草稿。")}</p>
         </section>
       ) : (
-        <section className="flashcards-list" aria-label="闪卡列表">
+        <section className="flashcards-list" aria-label={t("闪卡列表")}>
           {cards.map((card) => (
             <article className="flashcard-row" key={card.id}>
               {editingId === card.id ? (
                 <form className="flashcard-edit-form" onSubmit={saveEdit}>
                   <label>
-                    <span>问题</span>
+                    <span>{t("问题")}</span>
                     <textarea value={draft.question} maxLength={2000} required
                       onChange={(event) => setDraft((current) => ({ ...current, question: event.target.value }))} />
                   </label>
                   <label>
-                    <span>答案</span>
+                    <span>{t("答案")}</span>
                     <textarea value={draft.answer} maxLength={5000} required
                       onChange={(event) => setDraft((current) => ({ ...current, answer: event.target.value }))} />
                   </label>
                   <div className="flashcard-actions">
-                    <button className="cancel-button" type="button" onClick={() => setEditingId(null)} disabled={busyId === card.id}>取消</button>
-                    <button className="primary-button" type="submit" disabled={busyId === card.id}>{busyId === card.id ? "保存中…" : "保存修改"}</button>
+                    <button className="cancel-button" type="button" onClick={() => setEditingId(null)} disabled={busyId === card.id}>{t("取消")}</button>
+                    <button className="primary-button" type="submit" disabled={busyId === card.id}>{busyId === card.id ? t("保存中…") : t("保存修改")}</button>
                   </div>
                 </form>
               ) : (
@@ -137,17 +139,17 @@ export default function FlashcardsPage() {
                     </div>
                   </div>
                   <div className="flashcard-meta">
-                    <span>下次复习：{displayDueDate(card.next_review_at)}</span>
+                    <span>{t("下次复习：")} {displayDueDate(card.next_review_at, locale)}</span>
                     <div className="flashcard-actions">
-                      <button className="text-button" type="button" onClick={() => beginEdit(card)}>编辑</button>
+                      <button className="text-button" type="button" onClick={() => beginEdit(card)}>{t("编辑")}</button>
                       {confirmDeleteId === card.id ? (
                         <span className="flashcard-delete-confirm">
-                          删除这张卡？
-                          <button className="text-button is-danger" type="button" disabled={busyId === card.id} onClick={() => deleteCard(card.id)}>确认</button>
-                          <button className="text-button" type="button" onClick={() => setConfirmDeleteId(null)}>取消</button>
+                          {t("删除这张卡？")}
+                          <button className="text-button is-danger" type="button" disabled={busyId === card.id} onClick={() => deleteCard(card.id)}>{t("确认")}</button>
+                          <button className="text-button" type="button" onClick={() => setConfirmDeleteId(null)}>{t("取消")}</button>
                         </span>
                       ) : (
-                        <button className="text-button is-danger" type="button" onClick={() => setConfirmDeleteId(card.id)}>删除</button>
+                        <button className="text-button is-danger" type="button" onClick={() => setConfirmDeleteId(card.id)}>{t("删除")}</button>
                       )}
                     </div>
                   </div>

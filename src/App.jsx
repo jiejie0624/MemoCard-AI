@@ -5,6 +5,7 @@ import CalendarPage from "./calendar/CalendarPage.jsx";
 import DocumentsPage from "./documents/DocumentsPage.jsx";
 import FlashcardsPage from "./flashcards/FlashcardsPage.jsx";
 import ReviewPage from "./review/ReviewPage.jsx";
+import { LanguageToggle, useLanguage } from "./i18n.jsx";
 import "./styles.css";
 
 const AUTH_API = "/api/auth";
@@ -88,11 +89,6 @@ async function requestDashboardSummary() {
   return payload;
 }
 
-function formatReviewDate(value, timezone) {
-  if (!value) return "暂无安排";
-  return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", timeZone: timezone }).format(new Date(value));
-}
-
 function Brand({ compact = false }) {
   return (
     <div className={`brand-lockup${compact ? " brand-lockup-compact" : ""}`}>
@@ -103,6 +99,7 @@ function Brand({ compact = false }) {
 }
 
 function AuthPage({ onAuthenticated, connectionNotice }) {
+  const { t } = useLanguage();
   const [mode, setMode] = useState("login");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -145,33 +142,34 @@ function AuthPage({ onAuthenticated, connectionNotice }) {
 
   return (
     <main className="auth-stage">
-      <section className="auth-card" aria-label="MemoCard AI 账号">
+      <section className="auth-card" aria-label={t("MemoCard AI 账号")}>
         <aside className="auth-story">
           <div className="story-decoration story-decoration-one" aria-hidden="true" />
           <div className="story-decoration story-decoration-two" aria-hidden="true" />
           <Brand />
           <div className="story-copy">
-            <p className="eyebrow story-eyebrow">PERSONAL LEARNING WORKSPACE</p>
-            <h1>把每一份资料，<br />变成长期记忆。</h1>
+            <p className="eyebrow story-eyebrow">{t("PERSONAL LEARNING WORKSPACE")}</p>
+            <h1>{t("把每一份资料，\n变成长期记忆。").split("\n").map((line, index) => <span key={line}>{index > 0 && <br />}{line}</span>)}</h1>
             <p className="story-description">
-              从课程资料出发，整理知识、提出问题，再慢慢建立适合自己的复习节奏。
+              {t("从课程资料出发，整理知识、提出问题，再慢慢建立适合自己的复习节奏。")}
             </p>
           </div>
           <div className="story-footer">
             <span className="story-footer-dot" aria-hidden="true" />
-            <span>给学习留一点持续向前的空间</span>
+            <span>{t("给学习留一点持续向前的空间")}</span>
           </div>
         </aside>
 
         <section className="auth-panel">
+          <LanguageToggle className="auth-language-toggle" />
           <div className="auth-form-wrap" key={mode}>
-            <p className="eyebrow auth-eyebrow">欢迎来到你的学习空间</p>
-            <h2>{isRegistering ? "创建账号" : "欢迎回来"}</h2>
+            <p className="eyebrow auth-eyebrow">{t("欢迎来到你的学习空间")}</p>
+            <h2>{isRegistering ? t("创建账号") : t("欢迎回来")}</h2>
             <p className="form-intro">
-              {isRegistering ? "建立账号，开始整理你的学习内容。" : "登录后继续你的学习计划。"}
+              {isRegistering ? t("建立账号，开始整理你的学习内容。") : t("登录后继续你的学习计划。")}
             </p>
 
-            <div className="auth-tabs" role="group" aria-label="登录或注册">
+            <div className="auth-tabs" role="group" aria-label={t("登录或注册")}>
               <button
                 type="button"
                 aria-pressed={!isRegistering}
@@ -179,7 +177,7 @@ function AuthPage({ onAuthenticated, connectionNotice }) {
                 disabled={submitting}
                 onClick={() => changeMode("login")}
               >
-                登录
+                {t("登录")}
               </button>
               <button
                 type="button"
@@ -188,23 +186,23 @@ function AuthPage({ onAuthenticated, connectionNotice }) {
                 disabled={submitting}
                 onClick={() => changeMode("register")}
               >
-                注册
+                {t("注册")}
               </button>
             </div>
 
             {connectionNotice && !error && (
-              <p className="form-notice" role="status">{connectionNotice}</p>
+              <p className="form-notice" role="status">{t(connectionNotice)}</p>
             )}
 
             <form className="auth-form" onSubmit={handleSubmit}>
               {isRegistering && (
                 <label className="field-group">
-                  <span>姓名</span>
+                  <span>{t("姓名")}</span>
                   <input
                     name="display_name"
                     type="text"
                     autoComplete="name"
-                    placeholder="你希望我们怎么称呼你"
+                    placeholder={t("你希望我们怎么称呼你")}
                     minLength={1}
                     maxLength={100}
                     required
@@ -213,7 +211,7 @@ function AuthPage({ onAuthenticated, connectionNotice }) {
               )}
 
               <label className="field-group">
-                <span>邮箱</span>
+                <span>{t("邮箱")}</span>
                 <input
                   name="email"
                   type="email"
@@ -225,13 +223,13 @@ function AuthPage({ onAuthenticated, connectionNotice }) {
               </label>
 
               <label className="field-group">
-                <span>密码</span>
+                <span>{t("密码")}</span>
                 <span className="password-field">
                   <input
                     name="password"
                     type={showPassword ? "text" : "password"}
                     autoComplete={isRegistering ? "new-password" : "current-password"}
-                    placeholder={isRegistering ? "至少 12 个字符" : "请输入你的密码"}
+                    placeholder={isRegistering ? t("至少 12 个字符") : t("请输入你的密码")}
                     minLength={12}
                     maxLength={1024}
                     required
@@ -239,24 +237,24 @@ function AuthPage({ onAuthenticated, connectionNotice }) {
                   <button
                     className="password-toggle"
                     type="button"
-                    aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                    aria-label={showPassword ? t("隐藏密码") : t("显示密码")}
                     onClick={() => setShowPassword((current) => !current)}
                   >
-                    {showPassword ? "隐藏" : "显示"}
+                    {showPassword ? t("隐藏") : t("显示")}
                   </button>
                 </span>
               </label>
 
-              {error && <p className="form-error" role="alert">{error}</p>}
+              {error && <p className="form-error" role="alert">{t(error)}</p>}
 
               <button className="primary-button auth-submit" type="submit" disabled={submitting}>
-                {submitting ? "请稍候…" : isRegistering ? "创建账号" : "登录"}
+                {submitting ? t("请稍候…") : isRegistering ? t("创建账号") : t("登录")}
                 {!submitting && <span aria-hidden="true">→</span>}
               </button>
             </form>
 
             <p className="auth-footnote">
-              注册或登录即开始使用 MemoCard AI 学习工作台。
+              {t("注册或登录即开始使用 MemoCard AI 学习工作台。")}
             </p>
           </div>
         </section>
@@ -266,6 +264,7 @@ function AuthPage({ onAuthenticated, connectionNotice }) {
 }
 
 function Dashboard({ user, onUserUpdated, onLoggedOut }) {
+  const { t, locale } = useLanguage();
   const profileDialog = useRef(null);
   const [activeSection, setActiveSection] = useState("home");
   const [signingOut, setSigningOut] = useState(false);
@@ -313,11 +312,11 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
     const display_name = profileName.trim();
     const timezone = profileTimezone.trim();
     if (!display_name) {
-      setProfileError("姓名不能为空。");
+      setProfileError(t("姓名不能为空。"));
       return;
     }
     if (!timezone) {
-      setProfileError("请填写有效的时区，例如 Asia/Kuala_Lumpur。");
+      setProfileError(t("请填写有效的时区，例如 Asia/Kuala_Lumpur。"));
       return;
     }
 
@@ -355,8 +354,9 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
       <aside className="sidebar">
         <div className="sidebar-top">
           <Brand compact />
-          <div className="workspace-label">学习工作台</div>
-          <nav className="primary-nav" aria-label="主导航">
+          <div className="workspace-label">{t("学习工作台")}</div>
+          <div className="sidebar-language"><LanguageToggle /></div>
+          <nav className="primary-nav" aria-label={t("主导航")}>
             <button
               className={`nav-item${activeSection === "home" ? " is-current" : ""}`}
               type="button"
@@ -364,7 +364,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               onClick={() => setActiveSection("home")}
             >
               <span className="nav-indicator" aria-hidden="true" />
-              首页
+              {t("首页")}
             </button>
             <button
               className={`nav-item${activeSection === "documents" ? " is-current" : ""}`}
@@ -373,7 +373,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               onClick={() => setActiveSection("documents")}
             >
               <span className="nav-indicator" aria-hidden="true" />
-              学习资料
+              {t("学习资料")}
             </button>
             <button
               className={`nav-item${activeSection === "chat" ? " is-current" : ""}`}
@@ -382,7 +382,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               onClick={() => setActiveSection("chat")}
             >
               <span className="nav-indicator" aria-hidden="true" />
-              AI 问答
+              {t("AI 问答")}
             </button>
             <button
               className={`nav-item${activeSection === "flashcards" ? " is-current" : ""}`}
@@ -391,7 +391,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               onClick={() => setActiveSection("flashcards")}
             >
               <span className="nav-indicator" aria-hidden="true" />
-              闪卡
+              {t("闪卡")}
             </button>
             <button
               className={`nav-item${activeSection === "review" ? " is-current" : ""}`}
@@ -400,7 +400,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               onClick={() => setActiveSection("review")}
             >
               <span className="nav-indicator" aria-hidden="true" />
-              今日复习
+              {t("今日复习")}
             </button>
             <button
               className={`nav-item${activeSection === "calendar" ? " is-current" : ""}`}
@@ -409,25 +409,25 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               onClick={() => setActiveSection("calendar")}
             >
               <span className="nav-indicator" aria-hidden="true" />
-              复习日历
+              {t("复习日历")}
             </button>
           </nav>
         </div>
 
         <div className="sidebar-account">
           <span className="account-avatar" aria-hidden="true">{initials}</span>
-          <button className="account-details profile-trigger" type="button" onClick={openProfile} aria-label="编辑个人资料">
+          <button className="account-details profile-trigger" type="button" onClick={openProfile} aria-label={t("编辑个人资料")}>
             <strong>{displayName}</strong>
             <span>{user.email}</span>
-            <span className="profile-trigger-hint">编辑个人资料</span>
+            <span className="profile-trigger-hint">{t("编辑个人资料")}</span>
           </button>
           <button
             className="logout-button"
             type="button"
             onClick={handleLogout}
             disabled={signingOut}
-            aria-label="退出登录"
-            title="退出登录"
+            aria-label={t("退出登录")}
+            title={t("退出登录")}
           >
             {signingOut ? "…" : "↗"}
           </button>
@@ -435,7 +435,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
       </aside>
 
       <main className="workspace-main">
-        {error && <p className="dashboard-error" role="alert">{error}</p>}
+        {error && <p className="dashboard-error" role="alert">{t(error)}</p>}
         {activeSection === "documents" ? <DocumentsPage /> : activeSection === "chat" ? (
           <ChatPage
             onOpenDocuments={() => setActiveSection("documents")}
@@ -451,46 +451,46 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
         <div className="workspace-content">
           <header className="dashboard-heading">
             <div>
-              <p className="eyebrow">MEMOCARD AI · 学习空间</p>
-              <h1>你好，{displayName}</h1>
-              <p className="dashboard-subtitle">把今天学到的内容，慢慢变成自己的知识。</p>
+              <p className="eyebrow">{t("MEMOCARD AI · 学习空间")}</p>
+              <h1>{t("你好，{name}", { name: displayName })}</h1>
+              <p className="dashboard-subtitle">{t("把今天学到的内容，慢慢变成自己的知识。")}</p>
             </div>
             <span className="workspace-status">
               <span className="status-dot" aria-hidden="true" />
-              个人空间
+              {t("个人空间")}
             </span>
           </header>
 
           <section className="review-card" aria-labelledby="review-card-title">
             <div className="review-copy">
-              <p className="eyebrow review-eyebrow">今日学习</p>
-              <h2 id="review-card-title">继续今天的复习</h2>
+              <p className="eyebrow review-eyebrow">{t("今日学习")}</p>
+              <h2 id="review-card-title">{t("继续今天的复习")}</h2>
               <p>
-                {summaryLoading ? "正在读取你的复习安排…" : summaryError
-                  ? "暂时无法读取复习安排，请重试或打开复习日历。"
-                  : `逾期 ${summary?.overdue_count ?? 0} 张 · 今天 ${summary?.today_count ?? 0} 张 · 未来 7 天 ${summary?.upcoming_count ?? 0} 张`}
+                {summaryLoading ? t("正在读取你的复习安排…") : summaryError
+                  ? t("暂时无法读取复习安排，请重试或打开复习日历。")
+                  : t("逾期 {overdue} 张 · 今天 {today} 张 · 未来 7 天 {upcoming} 张", { overdue: summary?.overdue_count ?? 0, today: summary?.today_count ?? 0, upcoming: summary?.upcoming_count ?? 0 })}
               </p>
               {summaryError ? (
                 <button className="secondary-button" type="button" onClick={() => setActiveSection("calendar")}>
-                  查看复习日历
+                  {t("查看复习日历")}
                 </button>
               ) : (
                 <button className="secondary-button" type="button" onClick={() => setActiveSection("review")} disabled={summaryLoading}>
-                  {(summary?.overdue_count || summary?.today_count) ? "开始复习" : "查看复习安排"}
+                  {(summary?.overdue_count || summary?.today_count) ? t("开始复习") : t("查看复习安排")}
                 </button>
               )}
               {summary?.next_review_at && !summaryLoading && (
-                <span className="dashboard-next-review">下一张：{formatReviewDate(summary.next_review_at, summary.timezone)}</span>
+                <span className="dashboard-next-review">{t("下一张：{date}", { date: new Intl.DateTimeFormat(locale, { month: "long", day: "numeric", timeZone: summary.timezone }).format(new Date(summary.next_review_at)) })}</span>
               )}
-              {summaryError && <button className="text-button" type="button" onClick={() => setSummaryRefreshKey((current) => current + 1)}>重新加载</button>}
+              {summaryError && <button className="text-button" type="button" onClick={() => setSummaryRefreshKey((current) => current + 1)}>{t("重新加载")}</button>}
               <button className="text-button" type="button" onClick={() => setActiveSection("calendar")}>
-                打开复习日历 <span aria-hidden="true">→</span>
+                {t("打开复习日历 →")}
               </button>
             </div>
-            <div className="review-art" aria-label="布里布里左卫门手绘图">
+            <div className="review-art" aria-label={t("布里布里左卫门手绘图")}>
               <img
                 src="/images/buriburi-review.png"
-                alt="你提供的布里布里左卫门手绘图"
+                alt={t("你提供的布里布里左卫门手绘图")}
                 width="262"
                 height="345"
               />
@@ -500,10 +500,10 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
           <section className="workspace-note" aria-labelledby="workspace-note-title">
             <div className="note-mark" aria-hidden="true">✦</div>
             <div>
-              <h2 id="workspace-note-title">学习资料入口已开放</h2>
-              <p>资料上传、AI 问答、闪卡管理、间隔复习和复习日历都已接入。</p>
+              <h2 id="workspace-note-title">{t("学习资料入口已开放")}</h2>
+              <p>{t("资料上传、AI 问答、闪卡管理、间隔复习和复习日历都已接入。")}</p>
               <button className="text-button home-documents-link" type="button" onClick={() => setActiveSection("documents")}>
-                前往学习资料 <span aria-hidden="true">→</span>
+                {t("前往学习资料 →")}
               </button>
             </div>
           </section>
@@ -523,13 +523,13 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
       >
         <div className="profile-dialog-heading">
           <div>
-            <p className="eyebrow">个人资料</p>
-            <h2 id="profile-dialog-title">管理你的账号信息</h2>
+            <p className="eyebrow">{t("个人资料")}</p>
+            <h2 id="profile-dialog-title">{t("管理你的账号信息")}</h2>
           </div>
           <button
             className="dialog-close"
             type="button"
-            aria-label="关闭个人资料"
+            aria-label={t("关闭个人资料")}
             onClick={() => setEditingProfile(false)}
           >
             ×
@@ -537,7 +537,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
         </div>
         <form className="profile-form" onSubmit={handleProfileSubmit}>
           <label className="field-group">
-            <span>姓名</span>
+            <span>{t("姓名")}</span>
             <input
               type="text"
               name="display_name"
@@ -550,11 +550,11 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
             />
           </label>
           <label className="field-group">
-            <span>邮箱</span>
+            <span>{t("邮箱")}</span>
             <input type="email" value={user.email} readOnly />
           </label>
           <label className="field-group">
-            <span>时区</span>
+            <span>{t("时区")}</span>
             <input
               type="text"
               name="timezone"
@@ -566,9 +566,9 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
             />
           </label>
           <p className="field-help" id="timezone-help">
-            使用 IANA 时区名称；新账号会自动采用当前设备时区。
+            {t("使用 IANA 时区名称；新账号会自动采用当前设备时区。")}
           </p>
-          {profileError && <p className="form-error" role="alert">{profileError}</p>}
+          {profileError && <p className="form-error" role="alert">{t(profileError)}</p>}
           <div className="profile-actions">
             <button
               className="cancel-button"
@@ -576,10 +576,10 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               onClick={() => setEditingProfile(false)}
               disabled={savingProfile}
             >
-              取消
+              {t("取消")}
             </button>
             <button className="primary-button" type="submit" disabled={savingProfile}>
-              {savingProfile ? "正在保存…" : "保存修改"}
+              {savingProfile ? t("正在保存…") : t("保存修改")}
             </button>
           </div>
         </form>
@@ -589,6 +589,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
 }
 
 export default function App() {
+  const { t } = useLanguage();
   const [user, setUser] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [connectionNotice, setConnectionNotice] = useState("");
@@ -616,7 +617,7 @@ export default function App() {
     return (
       <main className="session-check" aria-live="polite">
         <span className="loading-mark" aria-hidden="true">M</span>
-        <p>正在打开你的学习空间…</p>
+        <p>{t("正在打开你的学习空间…")}</p>
       </main>
     );
   }

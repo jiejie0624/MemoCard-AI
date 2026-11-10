@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiUrl } from "../api.js";
+import { useLanguage } from "../i18n.jsx";
 
 const API = "/api/chat";
 
@@ -36,21 +37,22 @@ async function flashcardRequest(path, options = {}) {
   return payload;
 }
 
-function formatSessionTitle(session) {
-  return session.title || "新对话";
+function formatSessionTitle(session, t) {
+  return session.title || t("新对话");
 }
 
 function CitationList({ citations }) {
+  const { t } = useLanguage();
   if (!citations?.length) return null;
   return (
     <details className="chat-citations">
-      <summary>查看 {citations.length} 个资料来源</summary>
+      <summary>{t("查看 {count} 个资料来源", { count: citations.length })}</summary>
       <ol>
         {citations.map((citation) => (
           <li key={`${citation.rank}-${citation.document_name}-${citation.page_number}-${citation.slide_number}`}>
             <strong>{citation.document_name}</strong>
             {(citation.page_number || citation.slide_number) && (
-              <span>{citation.page_number ? ` · 第 ${citation.page_number} 页` : ` · 第 ${citation.slide_number} 张`}</span>
+              <span>{citation.page_number ? t(" · 第 {page} 页", { page: citation.page_number }) : t(" · 第 {slide} 张", { slide: citation.slide_number })}</span>
             )}
             <p>{citation.excerpt}</p>
           </li>
@@ -61,6 +63,7 @@ function CitationList({ citations }) {
 }
 
 export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
+  const { t } = useLanguage();
   const [documents, setDocuments] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [activeSession, setActiveSession] = useState(null);
@@ -216,26 +219,26 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
   }
 
   if (loading) {
-    return <main className="chat-page"><p className="chat-loading" role="status">正在整理你的对话…</p></main>;
+    return <main className="chat-page"><p className="chat-loading" role="status">{t("正在整理你的对话…")}</p></main>;
   }
 
   return (
     <main className="chat-page">
       <header className="chat-page-heading">
         <div>
-          <p className="eyebrow">MEMOCARD AI · 学习问答</p>
-          <h1>AI 问答</h1>
-          <p>结合已处理的课程资料回答，并附上可核对的来源。</p>
+          <p className="eyebrow">{t("MEMOCARD AI · 学习问答")}</p>
+          <h1>{t("AI 问答")}</h1>
+          <p>{t("结合已处理的课程资料回答，并附上可核对的来源。")}</p>
         </div>
         <button className="primary-button chat-new-button" type="button" onClick={startNewSession}>
-          新建对话
+          {t("新建对话")}
         </button>
       </header>
 
-      <section className="chat-workspace" aria-label="AI 问答工作区">
-        <aside className="chat-session-list" aria-label="对话历史">
+      <section className="chat-workspace" aria-label={t("AI 问答工作区")}>
+        <aside className="chat-session-list" aria-label={t("对话历史")}>
           <div className="chat-session-list-heading">
-            <h2>对话</h2>
+            <h2>{t("对话")}</h2>
             <span>{sessions.length}</span>
           </div>
           {sessions.length ? sessions.map((session) => (
@@ -245,32 +248,32 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
               key={session.id}
               onClick={() => openSession(session)}
             >
-              <strong>{formatSessionTitle(session)}</strong>
-              <span>{session.message_count || 0} 条消息</span>
+              <strong>{formatSessionTitle(session, t)}</strong>
+              <span>{session.message_count || 0} {t("条消息")}</span>
             </button>
-          )) : <p className="chat-session-empty">发送第一个问题后，对话会显示在这里。</p>}
+          )) : <p className="chat-session-empty">{t("发送第一个问题后，对话会显示在这里。")}</p>}
         </aside>
 
         <div className="chat-thread">
           <div className="chat-thread-topline">
             <div>
-              <strong>{activeSession ? formatSessionTitle(activeSession) : "开始一个新对话"}</strong>
+              <strong>{activeSession ? formatSessionTitle(activeSession, t) : t("开始一个新对话")}</strong>
               <span>
                 {activeSession?.all_documents === false
-                  ? `已选择 ${selectedDocumentIds.length} 份资料`
-                  : `搜索全部已就绪资料 · ${readyDocuments.length} 份`}
+                  ? t("已选择 {count} 份资料", { count: selectedDocumentIds.length })
+                  : t("搜索全部已就绪资料 · {count} 份", { count: readyDocuments.length })}
               </span>
             </div>
             {!activeSession && (
               <button className="text-button" type="button" onClick={() => setShowScope((value) => !value)}>
-                {showScope ? "收起资料选择" : "选择资料"}
+                {showScope ? t("收起资料选择") : t("选择资料")}
               </button>
             )}
           </div>
 
           {showScope && !activeSession && (
-            <div className="chat-scope-panel" aria-label="选择本次对话资料">
-              <p>默认搜索全部已就绪资料。勾选后，只搜索选中的资料。</p>
+            <div className="chat-scope-panel" aria-label={t("选择本次对话资料")}>
+              <p>{t("默认搜索全部已就绪资料。勾选后，只搜索选中的资料。")}</p>
               <div className="chat-scope-options">
                 {readyDocuments.map((document) => (
                   <label key={document.id}>
@@ -285,7 +288,7 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
               </div>
               {selectedDocumentIds.length > 0 && (
                 <button className="text-button" type="button" onClick={() => setSelectedDocumentIds([])}>
-                  恢复搜索全部资料
+                  {t("恢复搜索全部资料")}
                 </button>
               )}
             </div>
@@ -295,22 +298,22 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
             {!messages.length && (
               <div className="chat-empty-state">
                 <span className="chat-empty-mark" aria-hidden="true">✦</span>
-                <h2>{readyDocuments.length ? "你想从资料里了解什么？" : "先准备一份学习资料"}</h2>
+                <h2>{readyDocuments.length ? t("你想从资料里了解什么？") : t("先准备一份学习资料")}</h2>
                 <p>
                   {readyDocuments.length
-                    ? "我会先查找相关内容，再根据找到的片段回答并标出来源。"
-                    : "上传并处理 PDF、TXT 或 PPTX 后，就可以针对内容提问。"}
+                    ? t("我会先查找相关内容，再根据找到的片段回答并标出来源。")
+                    : t("上传并处理 PDF、TXT 或 PPTX 后，就可以针对内容提问。")}
                 </p>
                 {!readyDocuments.length && (
                   <button className="secondary-button" type="button" onClick={onOpenDocuments}>
-                    前往学习资料
+                    {t("前往学习资料")}
                   </button>
                 )}
               </div>
             )}
             {messages.map((message) => (
               <article className={`chat-message chat-message-${message.role}`} key={message.id}>
-                <div className="chat-message-label">{message.role === "user" ? "你" : "MemoCard AI"}</div>
+                <div className="chat-message-label">{message.role === "user" ? t("你") : "MemoCard AI"}</div>
                 <div className="chat-message-content">{message.content}</div>
                 {message.role === "assistant" && (
                   <>
@@ -318,18 +321,18 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
                     {message.citations?.length > 0 && (
                       <button className="text-button chat-generate-cards" type="button"
                         onClick={() => generateCards(message)}>
-                        生成闪卡
+                        {t("生成闪卡")}
                       </button>
                     )}
                   </>
                 )}
               </article>
             ))}
-            {sending && <p className="chat-thinking" role="status">正在查找资料并整理回答…</p>}
+            {sending && <p className="chat-thinking" role="status">{t("正在查找资料并整理回答…")}</p>}
             <div ref={bottomRef} />
           </div>
 
-          {error && <p className="chat-error" role="alert">{error}</p>}
+          {error && <p className="chat-error" role="alert">{t(error)}</p>}
           <form className="chat-composer" onSubmit={submitQuestion}>
             <textarea
               value={question}
@@ -342,14 +345,14 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
               }}
               maxLength={4000}
               rows={2}
-              placeholder={readyDocuments.length ? "输入关于课程资料的问题…" : "处理好学习资料后即可提问"}
+              placeholder={readyDocuments.length ? t("输入关于课程资料的问题…") : t("处理好学习资料后即可提问")}
               disabled={!readyDocuments.length || sending}
-              aria-label="输入问题"
+              aria-label={t("输入问题")}
             />
             <button className="primary-button" type="submit" disabled={!question.trim() || sending || !readyDocuments.length}>
-              {sending ? "回答中…" : "发送"}
+              {sending ? t("回答中…") : t("发送")}
             </button>
-            <span>Enter 发送 · Shift + Enter 换行</span>
+            <span>{t("Enter 发送 · Shift + Enter 换行")}</span>
           </form>
         </div>
       </section>
@@ -361,44 +364,44 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
           <section className="flashcard-draft-dialog" role="dialog" aria-modal="true" aria-labelledby="flashcard-draft-title">
             <header>
               <div>
-                <p className="eyebrow">来自 AI 回答</p>
-                <h2 id="flashcard-draft-title">检查闪卡草稿</h2>
+                <p className="eyebrow">{t("来自 AI 回答")}</p>
+                <h2 id="flashcard-draft-title">{t("检查闪卡草稿")}</h2>
               </div>
-              <button type="button" className="dialog-close" aria-label="关闭闪卡草稿"
+              <button type="button" className="dialog-close" aria-label={t("关闭闪卡草稿")}
                 onClick={() => setDraftSource(null)} disabled={savingDraft || generatingDraft}>×</button>
             </header>
             <div className="flashcard-draft-body">
-              {generatingDraft ? <p className="chat-thinking" role="status">正在根据回答和引用整理闪卡…</p> : (
+              {generatingDraft ? <p className="chat-thinking" role="status">{t("正在根据回答和引用整理闪卡…")}</p> : (
                 <>
                   {draftCards.map((card, index) => (
                     <article className="flashcard-draft-item" key={`${index}-${card.question}`}>
                       <div className="flashcard-draft-item-heading">
-                        <strong>卡片 {index + 1}</strong>
+                        <strong>{t("卡片 {count}", { count: index + 1 })}</strong>
                         <button className="text-button is-danger" type="button"
                           onClick={() => setDraftCards((current) => current.filter((_, cardIndex) => cardIndex !== index))}>
-                          移除此卡
+                          {t("移除此卡")}
                         </button>
                       </div>
-                      <label><span>问题</span><textarea value={card.question} maxLength={2000}
+                      <label><span>{t("问题")}</span><textarea value={card.question} maxLength={2000}
                         onChange={(event) => updateDraft(index, "question", event.target.value)} /></label>
-                      <label><span>答案</span><textarea value={card.answer} maxLength={5000}
+                      <label><span>{t("答案")}</span><textarea value={card.answer} maxLength={5000}
                         onChange={(event) => updateDraft(index, "answer", event.target.value)} /></label>
-                      <span className="flashcard-draft-source">引用来源：{card.source_refs.map((rank) => `来源 ${rank}`).join("、")}</span>
+                      <span className="flashcard-draft-source">{t("引用来源：")}{card.source_refs.map((rank) => t("来源 {rank}", { rank })).join(", ")}</span>
                     </article>
                   ))}
-                  {!draftCards.length && !draftError && <p className="chat-session-empty">没有可保存的草稿。</p>}
+                  {!draftCards.length && !draftError && <p className="chat-session-empty">{t("没有可保存的草稿。")}</p>}
                 </>
               )}
-              {draftError && <p className="chat-error" role="alert">{draftError}</p>}
+              {draftError && <p className="chat-error" role="alert">{t(draftError)}</p>}
             </div>
             <footer>
-              <button className="cancel-button" type="button" onClick={() => setDraftSource(null)} disabled={savingDraft}>取消</button>
+              <button className="cancel-button" type="button" onClick={() => setDraftSource(null)} disabled={savingDraft}>{t("取消")}</button>
               {!generatingDraft && draftError && !draftCards.length && (
-                <button className="secondary-button" type="button" onClick={() => generateCards(draftSource)} disabled={savingDraft}>重试生成</button>
+                <button className="secondary-button" type="button" onClick={() => generateCards(draftSource)} disabled={savingDraft}>{t("重试生成")}</button>
               )}
               <button className="primary-button" type="button" onClick={saveDraftCards}
                 disabled={generatingDraft || savingDraft || !draftCards.length}>
-                {savingDraft ? "正在保存…" : `保存 ${draftCards.length} 张闪卡`}
+                {savingDraft ? t("正在保存…") : t("保存 {count} 张闪卡", { count: draftCards.length })}
               </button>
             </footer>
           </section>

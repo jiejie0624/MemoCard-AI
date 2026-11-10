@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiUrl } from "../api.js";
+import { useLanguage } from "../i18n.jsx";
 
 async function request(path) {
   let response;
@@ -45,13 +46,14 @@ function shiftMonth(value, amount) {
   return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-function formatMonth(value) {
+function formatMonth(value, locale) {
   const { year, month } = dateParts(`${value}-01`);
-  return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "long", timeZone: "UTC" })
+  return new Intl.DateTimeFormat(locale, { year: "numeric", month: "long", timeZone: "UTC" })
     .format(new Date(Date.UTC(year, month - 1, 1)));
 }
 
 export default function CalendarPage({ onStartReview }) {
+  const { t, locale } = useLanguage();
   const [summary, setSummary] = useState(null);
   const [month, setMonth] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
@@ -123,29 +125,29 @@ export default function CalendarPage({ onStartReview }) {
     <main className="calendar-page">
       <header className="calendar-heading">
         <div>
-          <p className="eyebrow">MEMOCARD AI · 学习节奏</p>
-          <h1>复习日历</h1>
-          <p>按你的账号时区查看已安排的闪卡复习。</p>
+          <p className="eyebrow">{t("MEMOCARD AI · 学习节奏")}</p>
+          <h1>{t("复习日历")}</h1>
+          <p>{t("按你的账号时区查看已安排的闪卡复习。")}</p>
         </div>
         {summary && (
           <div className="calendar-summary">
-            <span><strong>{summary.overdue_count}</strong> 张逾期待复习</span>
-            <span><strong>{summary.today_count}</strong> 张今天到期</span>
+            <span><strong>{summary.overdue_count}</strong> {t("张逾期待复习")}</span>
+            <span><strong>{summary.today_count}</strong> {t("张今天到期")}</span>
           </div>
         )}
       </header>
 
-      {error && <div className="calendar-error" role="alert"><span>{error}</span><button className="text-button" type="button" onClick={() => { setError(""); setRefreshKey((current) => current + 1); loadSummary(); }}>重新加载</button></div>}
-      {loading ? <p className="calendar-status" role="status">正在加载复习日历…</p> : summary && (
+      {error && <div className="calendar-error" role="alert"><span>{t(error)}</span><button className="text-button" type="button" onClick={() => { setError(""); setRefreshKey((current) => current + 1); loadSummary(); }}>{t("重新加载")}</button></div>}
+      {loading ? <p className="calendar-status" role="status">{t("正在加载复习日历…")}</p> : summary && (
         <div className="calendar-layout">
-          <section className="calendar-panel" aria-label="复习日期">
+          <section className="calendar-panel" aria-label={t("复习日期")}>
             <div className="calendar-month-heading">
-              <button className="calendar-month-button" type="button" aria-label="上一个月" onClick={() => moveMonth(-1)}>‹</button>
-              <h2>{formatMonth(month)}</h2>
-              <button className="calendar-month-button" type="button" aria-label="下一个月" onClick={() => moveMonth(1)}>›</button>
+              <button className="calendar-month-button" type="button" aria-label={t("上一个月")} onClick={() => moveMonth(-1)}>‹</button>
+              <h2>{formatMonth(month, locale)}</h2>
+              <button className="calendar-month-button" type="button" aria-label={t("下一个月")} onClick={() => moveMonth(1)}>›</button>
             </div>
             <div className="calendar-grid calendar-weekdays" aria-hidden="true">
-              {["一", "二", "三", "四", "五", "六", "日"].map((day) => <span key={day}>{day}</span>)}
+              {["一", "二", "三", "四", "五", "六", "日"].map((day) => <span key={day}>{t(day)}</span>)}
             </div>
             <div className="calendar-grid calendar-days" aria-busy={calendarLoading}>
               {cells.map((cell) => (
@@ -153,7 +155,7 @@ export default function CalendarPage({ onStartReview }) {
                   className={`calendar-day${cell.value.slice(0, 7) !== month ? " is-outside" : ""}${cell.value === selectedDate ? " is-selected" : ""}${cell.value === summary.today ? " is-today" : ""}`}
                   key={cell.value}
                   type="button"
-                  aria-label={`${cell.value}，${cell.count} 张待复习`}
+                  aria-label={t("{date}，{count} 张待复习", { date: cell.value, count: cell.count })}
                   aria-pressed={cell.value === selectedDate}
                   onClick={() => {
                     if (cell.value.slice(0, 7) !== month) setMonth(cell.value.slice(0, 7));
@@ -165,17 +167,17 @@ export default function CalendarPage({ onStartReview }) {
                 </button>
               ))}
             </div>
-            <div className="calendar-legend"><span aria-hidden="true" /> 有待复习卡片</div>
+            <div className="calendar-legend"><span aria-hidden="true" /> {t("有待复习卡片")}</div>
           </section>
 
           <aside className="calendar-day-panel" aria-live="polite">
             <div className="calendar-day-heading">
-              <div><p className="eyebrow">所选日期</p><h2>{selectedDate}</h2></div>
+              <div><p className="eyebrow">{t("所选日期")}</p><h2>{selectedDate}</h2></div>
               {selectedDate <= summary.today && dayCards.length > 0 && (
-                <button className="primary-button" type="button" onClick={onStartReview}>开始复习</button>
+                <button className="primary-button" type="button" onClick={onStartReview}>{t("开始复习")}</button>
               )}
             </div>
-            {dayLoading ? <p className="calendar-status">正在加载当天卡片…</p> : dayCards.length ? (
+            {dayLoading ? <p className="calendar-status">{t("正在加载当天卡片…")}</p> : dayCards.length ? (
               <div className="calendar-card-list">
                 {dayCards.map((card) => (
                   <article className="calendar-card-item" key={card.id}>
@@ -184,7 +186,7 @@ export default function CalendarPage({ onStartReview }) {
                   </article>
                 ))}
               </div>
-            ) : <p className="calendar-no-cards">这一天没有安排复习。</p>}
+            ) : <p className="calendar-no-cards">{t("这一天没有安排复习。")}</p>}
           </aside>
         </div>
       )}

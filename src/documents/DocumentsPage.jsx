@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { apiUrl } from "../api.js";
+import { useLanguage } from "../i18n.jsx";
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const ACCEPTED_FORMATS = ".pdf,.txt,.pptx";
@@ -9,15 +10,15 @@ function formatSize(size) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDate(value) {
-  return new Intl.DateTimeFormat("zh-CN", {
+function formatDate(value, locale) {
+  return new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
   }).format(new Date(value));
 }
 
-function statusLabel(status) {
+function statusLabel(status, t) {
   const labels = {
     uploading: "正在上传",
     uploaded: "等待处理",
@@ -27,7 +28,7 @@ function statusLabel(status) {
     failed: "处理失败",
     deleting: "等待完成删除",
   };
-  return labels[status] || "状态未知";
+  return t(labels[status] || "状态未知");
 }
 
 function responseError(status, detail) {
@@ -69,7 +70,7 @@ async function requestDocuments(path, options = {}) {
   return payload;
 }
 
-function DocumentRow({ document, onDelete, onRetryDelete, onRetryProcessing, deleting, processing }) {
+function DocumentRow({ document, onDelete, onRetryDelete, onRetryProcessing, deleting, processing, t, locale }) {
   const extension = document.file_format.toUpperCase();
   const isPendingDelete = document.status === "deleting";
   const canRetryProcessing = document.status === "uploaded" || document.status === "failed";
@@ -84,26 +85,26 @@ function DocumentRow({ document, onDelete, onRetryDelete, onRetryProcessing, del
           {document.original_filename}
         </strong>
         <span className="document-metadata">
-          {formatSize(document.size_bytes)} <span aria-hidden="true">·</span> {formatDate(document.created_at)}
+          {formatSize(document.size_bytes)} <span aria-hidden="true">·</span> {formatDate(document.created_at, locale)}
         </span>
         {document.error_message && (
           <span className="document-inline-error" role="status">
-            {isPendingDelete ? "文件已从资料列表中停用，存储清理尚未完成。" : document.error_message}
+            {isPendingDelete ? t("文件已从资料列表中停用，存储清理尚未完成。") : t(document.error_message)}
           </span>
         )}
       </div>
       <span className={`document-status document-status-${document.status}`}>
         <span className="document-status-dot" aria-hidden="true" />
-        {statusLabel(document.status)}
+        {statusLabel(document.status, t)}
       </span>
       <div className="document-row-actions">
         {!isPendingDelete && (
           <a
             className="document-action"
             href={apiUrl(`/api/documents/${document.id}/file`)}
-            aria-label={`下载${document.original_filename}`}
+            aria-label={`${t("下载")} ${document.original_filename}`}
           >
-            下载
+            {t("下载")}
           </a>
         )}
         {isPendingDelete ? (
@@ -113,7 +114,7 @@ function DocumentRow({ document, onDelete, onRetryDelete, onRetryProcessing, del
             onClick={() => onRetryDelete(document)}
             disabled={deleting}
           >
-            {deleting ? "清理中…" : "重试清理"}
+            {deleting ? t("清理中…") : t("重试清理")}
           </button>
         ) : canRetryProcessing ? (
           <button
@@ -122,7 +123,7 @@ function DocumentRow({ document, onDelete, onRetryDelete, onRetryProcessing, del
             onClick={() => onRetryProcessing(document)}
             disabled={processing}
           >
-            {processing ? "处理中…" : document.status === "failed" ? "重试处理" : "开始处理"}
+            {processing ? t("处理中…") : document.status === "failed" ? t("重试处理") : t("开始处理")}
           </button>
         ) : (
           <button
@@ -131,7 +132,7 @@ function DocumentRow({ document, onDelete, onRetryDelete, onRetryProcessing, del
             onClick={() => onDelete(document)}
             disabled={deleting}
           >
-            删除
+            {t("删除")}
           </button>
         )}
       </div>
@@ -140,6 +141,7 @@ function DocumentRow({ document, onDelete, onRetryDelete, onRetryProcessing, del
 }
 
 export default function DocumentsPage() {
+  const { t, locale } = useLanguage();
   const fileInput = useRef(null);
   const deleteDialog = useRef(null);
   const [documents, setDocuments] = useState([]);
@@ -257,21 +259,21 @@ export default function DocumentsPage() {
     <div className="workspace-content documents-content">
       <header className="dashboard-heading">
         <div>
-          <p className="eyebrow">MEMOCARD AI · 学习资料</p>
-          <h1>整理你的课程资料</h1>
-          <p className="dashboard-subtitle">先把资料收好；处理完成后，就能用它们进行带来源的问答。</p>
+          <p className="eyebrow">{t("MEMOCARD AI · 学习资料")}</p>
+          <h1>{t("整理你的课程资料")}</h1>
+          <p className="dashboard-subtitle">{t("先把资料收好；处理完成后，就能用它们进行带来源的问答。")}</p>
         </div>
         <span className="workspace-status">
           <span className="status-dot" aria-hidden="true" />
-          私人资料空间
+          {t("私人资料空间")}
         </span>
       </header>
 
       <section className="documents-panel" aria-labelledby="documents-heading">
         <div className="documents-panel-heading">
           <div>
-            <h2 id="documents-heading">你的资料</h2>
-            <p>文件只对你的账号开放。</p>
+            <h2 id="documents-heading">{t("你的资料")}</h2>
+            <p>{t("文件只对你的账号开放。")}</p>
           </div>
           <button
             className="primary-button documents-upload-button"
@@ -280,7 +282,7 @@ export default function DocumentsPage() {
             disabled={uploading}
           >
             <span aria-hidden="true">＋</span>
-            {uploading ? "正在上传…" : "上传资料"}
+            {uploading ? t("正在上传…") : t("上传资料")}
           </button>
           <input
             ref={fileInput}
@@ -289,29 +291,29 @@ export default function DocumentsPage() {
             accept={ACCEPTED_FORMATS}
             onChange={handleUpload}
             disabled={uploading}
-            aria-label="选择要上传的学习资料"
+            aria-label={t("选择要上传的学习资料")}
           />
         </div>
 
         <div className="documents-upload-hint">
           <span className="upload-hint-mark" aria-hidden="true">↑</span>
           <div>
-            <strong>支持 PDF、UTF-8 TXT 和 PPTX</strong>
-            <p>单个文件最大 4 MiB。旧式 PPT 暂不支持。</p>
+            <strong>{t("支持 PDF、UTF-8 TXT 和 PPTX")}</strong>
+            <p>{t("单个文件最大 4 MiB。旧式 PPT 暂不支持。")}</p>
           </div>
           {(uploading || processingId) && (
             <span className="uploading-indicator" role="status">
-              {uploading ? "正在安全上传" : "正在提取文字并整理来源"}
+              {uploading ? t("正在安全上传") : t("正在提取文字并整理来源")}
             </span>
           )}
         </div>
 
-        {operationError && <p className="documents-error" role="alert">{operationError}</p>}
+        {operationError && <p className="documents-error" role="alert">{t(operationError)}</p>}
         {pageError && (
           <div className="documents-load-error" role="alert">
-            <p>{pageError}</p>
+            <p>{t(pageError)}</p>
             <button className="text-button" type="button" onClick={() => loadDocuments()}>
-              重新加载
+              {t("重新加载")}
             </button>
           </div>
         )}
@@ -319,16 +321,16 @@ export default function DocumentsPage() {
         {loading ? (
           <div className="documents-loading" role="status">
             <span className="loading-mark" aria-hidden="true">M</span>
-            <span>正在读取资料…</span>
+            <span>{t("正在读取资料…")}</span>
           </div>
         ) : !pageError && documents.length === 0 ? (
           <div className="documents-empty">
             <span className="empty-folder-mark" aria-hidden="true">＋</span>
-            <h3>这里还没有资料</h3>
-            <p>上传一份课程资料，之后就能在学习空间中继续整理和复习。</p>
+            <h3>{t("这里还没有资料")}</h3>
+            <p>{t("上传一份课程资料，之后就能在学习空间中继续整理和复习。")}</p>
           </div>
         ) : (
-          <ul className="document-list" aria-label="学习资料列表">
+          <ul className="document-list" aria-label={t("学习资料列表")}>
             {documents.map((document) => (
               <DocumentRow
                 key={document.id}
@@ -338,6 +340,8 @@ export default function DocumentsPage() {
                 onRetryProcessing={retryProcessing}
                 deleting={deletingId === document.id}
                 processing={processingId === document.id}
+                t={t}
+                locale={locale}
               />
             ))}
           </ul>
@@ -356,20 +360,20 @@ export default function DocumentsPage() {
       >
         <div className="profile-dialog-heading">
           <div>
-            <p className="eyebrow">删除资料</p>
-            <h2 id="document-delete-title">确定删除这份资料？</h2>
+            <p className="eyebrow">{t("删除资料")}</p>
+            <h2 id="document-delete-title">{t("确定删除这份资料？")}</h2>
           </div>
           <button
             className="dialog-close"
             type="button"
-            aria-label="取消删除"
+            aria-label={t("取消删除")}
             onClick={() => setConfirmingDocument(null)}
           >
             ×
           </button>
         </div>
         <p className="document-delete-copy">
-          {confirmingDocument?.original_filename} 将从你的资料列表中移除，文件也会从私有存储清理。
+          {confirmingDocument?.original_filename}{t("将从你的资料列表中移除，文件也会从私有存储清理。")}
         </p>
         <div className="profile-actions">
           <button
@@ -378,7 +382,7 @@ export default function DocumentsPage() {
             onClick={() => setConfirmingDocument(null)}
             disabled={deletingId !== null}
           >
-            保留资料
+            {t("保留资料")}
           </button>
           <button
             className="danger-button"
@@ -386,7 +390,7 @@ export default function DocumentsPage() {
             onClick={() => confirmingDocument && performDelete(confirmingDocument)}
             disabled={deletingId !== null}
           >
-            {deletingId ? "正在清理…" : "确认删除"}
+            {deletingId ? t("正在清理…") : t("确认删除")}
           </button>
         </div>
       </dialog>

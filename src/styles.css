@@ -188,10 +188,49 @@ input:focus-visible {
 }
 
 .auth-panel {
+  position: relative;
   display: grid;
   align-items: center;
   padding: clamp(30px, 5vw, 64px);
   background: #fff;
+}
+
+.language-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid #e6ebf3;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 88%);
+  color: #8992a2;
+  font-size: 11px;
+}
+
+.language-toggle button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #68758a;
+  cursor: pointer;
+  font: inherit;
+}
+
+.language-toggle button[aria-pressed="true"] {
+  color: #2369c4;
+  font-weight: 700;
+}
+
+.auth-language-toggle {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+}
+
+.sidebar-language {
+  display: flex;
+  justify-content: flex-end;
+  margin: 14px 8px 0;
 }
 
 .auth-form-wrap {
@@ -1446,6 +1485,11 @@ input:focus-visible {
 
   .workspace-label {
     display: none;
+  }
+
+  .sidebar-language {
+    order: 2;
+    margin: 0 0 0 auto;
   }
 
   .brand-lockup-compact {
