@@ -74,7 +74,7 @@ async function requestDocuments(path, options = {}) {
 function DocumentRow({ document, onDelete, onRetryDelete, onRetryProcessing, deleting, processing, t, locale }) {
   const extension = document.file_format.toUpperCase();
   const isPendingDelete = document.status === "deleting";
-  const canRetryProcessing = document.status === "uploaded" || document.status === "failed";
+  const canRetryProcessing = ["uploaded", "chunked", "failed"].includes(document.status);
 
   return (
     <li className="document-row">
@@ -124,7 +124,11 @@ function DocumentRow({ document, onDelete, onRetryDelete, onRetryProcessing, del
             onClick={() => onRetryProcessing(document)}
             disabled={processing}
           >
-            {processing ? t("处理中…") : document.status === "failed" ? t("重试处理") : t("开始处理")}
+            {processing
+              ? t("处理中…")
+              : document.status === "uploaded"
+                ? t("开始处理")
+                : t("重试处理")}
           </button>
         ) : (
           <button
