@@ -303,7 +303,10 @@ async def process_document(
             repository.save_embeddings_and_mark_ready, user.id, document_id, embeddings
         )
     except Exception as error:
-        logger.warning("Document vector indexing failed (%s)", type(error).__name__)
+        # The class name alone cannot distinguish a model-registration conflict from a
+        # download or pgvector failure, so the traceback (which carries the exception
+        # message) is logged alongside it for diagnosis.
+        logger.warning("Document vector indexing failed (%s)", type(error).__name__, exc_info=True)
         return await _failed_processing_response(
             repository,
             user.id,
