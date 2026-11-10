@@ -6,9 +6,12 @@ create a Vercel project or Blob store, configure secrets, or publish a deploymen
 ## Current repository setup
 
 - Vite builds the React frontend with `npm run build` into `dist/`.
-- `api/index.py` exports the FastAPI `app` for Vercel's Python runtime.
-- Vercel Functions route API traffic to the FastAPI entry point; the application routes
-  already use the `/api` prefix.
+- Vercel builds and serves the React frontend as static assets.
+- Render runs the FastAPI application from `backend.app.main:app`; `render.yaml` contains
+  the free-service blueprint and server-only environment variable declarations.
+- The frontend uses `VITE_API_BASE_URL` to send `/api/*` calls to the Render service.
+- Render allows credentialed browser requests only from the exact `FRONTEND_ORIGINS`.
+  Cross-site auth cookies use `COOKIE_SAMESITE=none` and remain Secure.
 - `.python-version` pins the deployment interpreter to Python 3.12.
 - `vercel.json` excludes tests, documentation, migrations, local environments, and
   generated Python bytecode from the Python Function bundle. No function duration is
@@ -18,19 +21,24 @@ create a Vercel project or Blob store, configure secrets, or publish a deploymen
 
 1. Set the project root to the repository root.
 2. Confirm the detected Vite build command is `npm run build` and output directory is `dist`.
-3. Confirm `/api/*` requests reach the Python Function exported by `api/index.py`.
-4. Connect a **private** Vercel Blob store to the project. Vercel's Python SDK can use
-   the connected store's OIDC credentials at runtime. For local Blob access, use the
-   `BLOB_READ_WRITE_TOKEN` variable described in `.env.example`.
-5. Set these server-only variables separately for Preview and Production:
-   - `DATABASE_URL`: Neon pooled connection URL for application requests.
-   - `DEEPSEEK_API_KEY`: DeepSeek API key.
-   - `DEEPSEEK_MODEL`: optional; defaults to `deepseek-flash`.
-6. Do not set `APP_ENV=development` in Preview or Production. The session cookie is
-   Secure unless the app is explicitly in development mode.
-7. Check the project's Python Function duration, memory, and Fluid Compute settings
-   against document parsing, model download, and the DeepSeek request timeout before
-   enabling uploads. Do not raise function duration without checking the account plan.
+3. Set `VITE_API_BASE_URL` to the deployed Render service origin, without a trailing slash,
+   for both Preview and Production builds as needed.
+4. Keep backend secrets on Render only; do not expose them through `VITE_` variables.
+
+## Render API settings
+
+1. Create a Web Service from this repository using the checked-in `render.yaml` blueprint.
+2. Set `DATABASE_URL` to Neon's pooled connection URL, `DEEPSEEK_API_KEY` to the server
+   secret, and `BLOB_READ_WRITE_TOKEN` to the private Blob read/write token.
+3. Set `FRONTEND_ORIGINS` to the exact Vercel Preview and Production origins that should
+   be allowed, comma-separated. Do not use `*` with credentialed cookies.
+4. Render Free services sleep after 15 minutes of inactivity and have limited memory. The
+   local embedding model may exceed that memory; verify a small synthetic TXT upload before
+   relying on document processing. The free filesystem is ephemeral, so all uploaded files
+   must continue to use Blob storage.
+5. Cross-site cookies require `COOKIE_SAMESITE=none`, HTTPS, and credentialed CORS. Some
+   browsers may block third-party cookies; if so, use a same-site custom domain or a
+   same-origin proxy design before production use.
 
 ## Neon database setup
 

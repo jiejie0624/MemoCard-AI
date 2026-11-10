@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { apiUrl } from "../api.js";
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const ACCEPTED_FORMATS = ".pdf,.txt,.pptx";
@@ -46,7 +47,7 @@ function responseError(status, detail) {
 async function requestDocuments(path, options = {}) {
   let response;
   try {
-    response = await fetch(`/api/documents${path}`, {
+    response = await fetch(apiUrl(`/api/documents${path}`), {
       ...options,
       credentials: "include",
       signal: options.signal || AbortSignal.timeout(20000),
@@ -99,7 +100,7 @@ function DocumentRow({ document, onDelete, onRetryDelete, onRetryProcessing, del
         {!isPendingDelete && (
           <a
             className="document-action"
-            href={`/api/documents/${document.id}/file`}
+            href={apiUrl(`/api/documents/${document.id}/file`)}
             aria-label={`下载${document.original_filename}`}
           >
             下载

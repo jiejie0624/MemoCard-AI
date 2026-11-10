@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { apiUrl } from "./api.js";
 import ChatPage from "./chat/ChatPage.jsx";
 import CalendarPage from "./calendar/CalendarPage.jsx";
 import DocumentsPage from "./documents/DocumentsPage.jsx";
@@ -48,7 +49,7 @@ function errorMessage(payload, status, path) {
 async function requestAuth(path, { method = "GET", body } = {}) {
   let response;
   try {
-    response = await fetch(`${AUTH_API}${path}`, {
+    response = await fetch(apiUrl(`${AUTH_API}${path}`), {
       method,
       credentials: "include",
       headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -75,7 +76,7 @@ async function requestAuth(path, { method = "GET", body } = {}) {
 }
 
 async function requestDashboardSummary() {
-  const response = await fetch("/api/dashboard/summary", {
+  const response = await fetch(apiUrl("/api/dashboard/summary"), {
     credentials: "include",
     signal: AbortSignal.timeout(12000),
   });

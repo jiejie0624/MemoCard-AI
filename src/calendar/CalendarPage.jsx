@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { apiUrl } from "../api.js";
 
 async function request(path) {
   let response;
   try {
-    response = await fetch(path, {
+    response = await fetch(apiUrl(path), {
       credentials: "include",
       signal: AbortSignal.timeout(12000),
     });

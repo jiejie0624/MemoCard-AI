@@ -106,19 +106,28 @@ Repository = Annotated[PostgresAuthRepository, Depends(get_repository)]
 
 def _set_session_cookie(response: Response, token: str) -> None:
     # Cookies stay secure by default; local HTTP development can opt out explicitly.
+    same_site = os.getenv("COOKIE_SAMESITE", "lax").lower()
+    secure = _cookie_is_secure()
+    if same_site == "none":
+        # Cross-site Vercel-to-Render requests require Secure SameSite=None cookies.
+        secure = True
     response.set_cookie(
         key=SESSION_COOKIE,
         value=token,
         max_age=int(SESSION_LIFETIME.total_seconds()),
         httponly=True,
-        secure=_cookie_is_secure(),
-        samesite="lax",
+        secure=secure,
+        samesite=same_site,
         path="/",
     )
 
 
 def _cookie_is_secure() -> bool:
     return os.getenv("APP_ENV", "production").lower() != "development"
+
+
+def _cookie_same_site() -> str:
+    return os.getenv("COOKIE_SAMESITE", "lax").lower()
 
 
 def _start_session(response: Response, repository: PostgresAuthRepository, user_id: UUID) -> None:
@@ -177,8 +186,8 @@ def logout(
         key=SESSION_COOKIE,
         path="/",
         httponly=True,
-        secure=_cookie_is_secure(),
-        samesite="lax",
+        secure=_cookie_is_secure() or _cookie_same_site() == "none",
+        samesite=_cookie_same_site(),
     )
     return response
 

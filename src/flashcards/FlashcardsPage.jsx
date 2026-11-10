@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { apiUrl } from "../api.js";
 
 async function requestCards(path, options = {}) {
-  const response = await fetch(`/api/flashcards${path}`, {
+  const response = await fetch(apiUrl(`/api/flashcards${path}`), {
     method: options.method || "GET",
     credentials: "include",
     headers: options.body ? { "Content-Type": "application/json" } : undefined,

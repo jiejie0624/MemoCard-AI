@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { apiUrl } from "../api.js";
 
 const API = "/api/chat";
 
 async function chatRequest(path, options = {}) {
-  const response = await fetch(`${API}${path}`, {
+  const response = await fetch(apiUrl(`${API}${path}`), {
     method: options.method || "GET",
     credentials: "include",
     headers: options.body ? { "Content-Type": "application/json" } : undefined,
@@ -23,7 +24,7 @@ async function chatRequest(path, options = {}) {
 }
 
 async function flashcardRequest(path, options = {}) {
-  const response = await fetch(`/api/flashcards${path}`, {
+  const response = await fetch(apiUrl(`/api/flashcards${path}`), {
     method: options.method || "GET",
     credentials: "include",
     headers: options.body ? { "Content-Type": "application/json" } : undefined,
@@ -84,7 +85,7 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
     setError("");
     try {
       const [nextDocuments, nextSessions] = await Promise.all([
-        fetch("/api/documents", { credentials: "include", signal: AbortSignal.timeout(15000) }).then(async (response) => {
+        fetch(apiUrl("/api/documents"), { credentials: "include", signal: AbortSignal.timeout(15000) }).then(async (response) => {
           if (!response.ok) throw new Error("无法加载学习资料。");
           return response.json();
         }),

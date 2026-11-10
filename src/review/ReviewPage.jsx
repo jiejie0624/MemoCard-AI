@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { apiUrl } from "../api.js";
 
 const PENDING_REVIEW_KEY = "memocard.pending-review.v1";
 const QUALITY_OPTIONS = [
@@ -13,7 +14,7 @@ const QUALITY_OPTIONS = [
 async function request(path, options = {}) {
   let response;
   try {
-    response = await fetch(path, {
+    response = await fetch(apiUrl(path), {
       method: options.method || "GET",
       credentials: "include",
       headers: options.body ? { "Content-Type": "application/json" } : undefined,
