@@ -1,58 +1,45 @@
-"""Local, multilingual embeddings used by the PostgreSQL vector index."""
+"""Local embeddings used by the PostgreSQL vector index.
+
+The encoder is deliberately small and English-only. It keeps the 384-dimension
+contract that the stored vectors already depend on, while fitting the 512 MB
+instance: the multilingual E5 model could not be loaded there at any precision
+(448 MB fp32, 224 MB optimised, 113 MB int8 all exhausted the instance).
+"""
 
 from __future__ import annotations
 
 from functools import lru_cache
 
 
-MODEL_NAME = "intfloat/multilingual-e5-small"
+MODEL_NAME = "BAAI/bge-small-en-v1.5"
 EMBEDDING_DIMENSIONS = 384
 EMBEDDING_BATCH_SIZE = 8
-# The repository publishes several ONNX graphs for the same weights. The fp32 graph
-# (448 MB) and the ORT-optimised fp32 graph (224 MB) both exhausted a 512 MB hosting
-# instance: ONNX Runtime needs roughly double the weight file on top of the graph and
-# the tokenizer. The int8 graph is 113 MB and yields the same 384-dimension vectors,
-# so stored vectors and the retrieval code are unaffected by the choice.
-MODEL_FILE = "onnx/model_qint8_avx512_vnni.onnx"
 
 
 class TextEmbedder:
-    """Generate E5 passage embeddings without sending document text to an API."""
+    """Generate embeddings without sending document text to an API."""
 
     def embed_passages(self, passages: list[str]) -> list[list[float]]:
         if not passages:
             return []
         model = _load_model()
-        # E5 uses separate prefixes so document and query vectors share a space.
         return [
             vector.tolist()
-            for vector in model.embed(
-                [f"passage: {text}" for text in passages],
-                batch_size=EMBEDDING_BATCH_SIZE,
-            )
+            for vector in model.embed(passages, batch_size=EMBEDDING_BATCH_SIZE)
         ]
 
     def embed_query(self, query: str) -> list[float]:
         model = _load_model()
-        return next(model.embed([f"query: {query}"])).tolist()
+        # query_embed applies the model's own retrieval instruction (BGE expects one
+        # for questions but not for passages), so no prefix is added by hand here.
+        return next(model.query_embed(query)).tolist()
 
 
 @lru_cache(maxsize=1)
 def _load_model():
-    # FastEmbed does not bundle this multilingual model, so register the pinned
-    # model metadata explicitly and let its cache manage the ONNX download.
+    # The model ships in FastEmbed's own registry, so no custom registration is
+    # needed. One worker thread and no CPU memory arena keep the runtime's peak
+    # allocation low on a 512 MB host.
     from fastembed import TextEmbedding as FastTextEmbedding
-    from fastembed.common.model_description import ModelSource, PoolingType
 
-    FastTextEmbedding.add_custom_model(
-        model=MODEL_NAME,
-        pooling=PoolingType.MEAN,
-        normalization=True,
-        sources=ModelSource(hf=MODEL_NAME),
-        dim=EMBEDDING_DIMENSIONS,
-        model_file=MODEL_FILE,
-    )
-    # Two memory controls for a 512 MB instance: one worker thread keeps the runtime's
-    # thread-local buffers small, and disabling the CPU memory arena stops ONNX Runtime
-    # from reserving a large block up front that is never actually needed here.
     return FastTextEmbedding(model_name=MODEL_NAME, threads=1, enable_cpu_mem_arena=False)
