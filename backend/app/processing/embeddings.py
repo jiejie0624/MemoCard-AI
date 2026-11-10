@@ -7,6 +7,7 @@ from functools import lru_cache
 
 MODEL_NAME = "intfloat/multilingual-e5-small"
 EMBEDDING_DIMENSIONS = 384
+EMBEDDING_BATCH_SIZE = 8
 
 
 class TextEmbedder:
@@ -17,7 +18,13 @@ class TextEmbedder:
             return []
         model = _load_model()
         # E5 uses separate prefixes so document and query vectors share a space.
-        return [vector.tolist() for vector in model.embed([f"passage: {text}" for text in passages])]
+        return [
+            vector.tolist()
+            for vector in model.embed(
+                [f"passage: {text}" for text in passages],
+                batch_size=EMBEDDING_BATCH_SIZE,
+            )
+        ]
 
     def embed_query(self, query: str) -> list[float]:
         model = _load_model()
@@ -39,4 +46,5 @@ def _load_model():
         dim=EMBEDDING_DIMENSIONS,
         model_file="onnx/model.onnx",
     )
-    return FastTextEmbedding(model_name=MODEL_NAME)
+    # Limit ONNX Runtime worker threads on Render's small free instances.
+    return FastTextEmbedding(model_name=MODEL_NAME, threads=1)
