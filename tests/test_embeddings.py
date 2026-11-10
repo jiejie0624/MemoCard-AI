@@ -8,7 +8,7 @@ class FakeModel:
     def __init__(self) -> None:
         self.inputs: list[list[str]] = []
 
-    def embed(self, texts: list[str]):
+    def embed(self, texts: list[str], batch_size: int | None = None):
         self.inputs.append(texts)
         return iter([FakeVector([0.1, 0.2, 0.3])])
 
