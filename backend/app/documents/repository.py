@@ -121,28 +121,29 @@ class PostgresDocumentRepository:
                     "DELETE FROM document_chunks WHERE document_id = %s AND user_id = %s",
                     (document_id, user_id),
                 )
-                connection.executemany(
-                    """
-                    INSERT INTO document_chunks (
-                        id, user_id, document_id, chunk_index, content,
-                        page_number, slide_number, content_hash
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    [
-                        (
-                            chunk.id,
-                            user_id,
-                            document_id,
-                            chunk.chunk_index,
-                            chunk.content,
-                            chunk.page_number,
-                            chunk.slide_number,
-                            chunk.content_hash,
+                with connection.cursor() as cursor:
+                    cursor.executemany(
+                        """
+                        INSERT INTO document_chunks (
+                            id, user_id, document_id, chunk_index, content,
+                            page_number, slide_number, content_hash
                         )
-                        for chunk in chunks
-                    ],
-                )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        [
+                            (
+                                chunk.id,
+                                user_id,
+                                document_id,
+                                chunk.chunk_index,
+                                chunk.content,
+                                chunk.page_number,
+                                chunk.slide_number,
+                                chunk.content_hash,
+                            )
+                            for chunk in chunks
+                        ],
+                    )
                 connection.execute(
                     """
                     UPDATE documents
@@ -195,22 +196,23 @@ class PostgresDocumentRepository:
                 if not chunks or len(chunks) != len(embeddings):
                     raise RuntimeError("Embedding count does not match the document chunks")
 
-                connection.executemany(
-                    """
-                    UPDATE document_chunks
-                    SET embedding = %s::vector
-                    WHERE id = %s AND document_id = %s AND user_id = %s
-                    """,
-                    [
-                        (
-                            "[" + ",".join(str(float(value)) for value in vector) + "]",
-                            chunk["id"],
-                            document_id,
-                            user_id,
-                        )
-                        for chunk, vector in zip(chunks, embeddings, strict=True)
-                    ],
-                )
+                with connection.cursor() as cursor:
+                    cursor.executemany(
+                        """
+                        UPDATE document_chunks
+                        SET embedding = %s::vector
+                        WHERE id = %s AND document_id = %s AND user_id = %s
+                        """,
+                        [
+                            (
+                                "[" + ",".join(str(float(value)) for value in vector) + "]",
+                                chunk["id"],
+                                document_id,
+                                user_id,
+                            )
+                            for chunk, vector in zip(chunks, embeddings, strict=True)
+                        ],
+                    )
                 updated = connection.execute(
                     """
                     UPDATE documents

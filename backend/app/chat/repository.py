@@ -44,13 +44,14 @@ class ChatRepository:
                     (session_id, user_id),
                 ).fetchone()
                 if selected_document_ids is not None:
-                    connection.executemany(
-                        """
-                        INSERT INTO chat_session_documents (user_id, session_id, document_id)
-                        VALUES (%s, %s, %s)
-                        """,
-                        [(user_id, session_id, document_id) for document_id in selected_document_ids],
-                    )
+                    with connection.cursor() as cursor:
+                        cursor.executemany(
+                            """
+                            INSERT INTO chat_session_documents (user_id, session_id, document_id)
+                            VALUES (%s, %s, %s)
+                            """,
+                            [(user_id, session_id, document_id) for document_id in selected_document_ids],
+                        )
                 session["selected_document_ids"] = selected_document_ids or []
                 session["all_documents"] = selected_document_ids is None
                 return session
