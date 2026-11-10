@@ -8,11 +8,12 @@ from functools import lru_cache
 MODEL_NAME = "intfloat/multilingual-e5-small"
 EMBEDDING_DIMENSIONS = 384
 EMBEDDING_BATCH_SIZE = 8
-# The repository's default graph (onnx/model.onnx) is 448 MB of fp32 weights, which
-# exhausts a 512 MB hosting instance the moment it is loaded. The ORT-optimised graph
-# is half the size and produces the same 384-dimension vectors, so the stored vectors
-# and the retrieval code are unaffected by the choice.
-MODEL_FILE = "onnx/model_O4.onnx"
+# The repository publishes several ONNX graphs for the same weights. The fp32 graph
+# (448 MB) and the ORT-optimised fp32 graph (224 MB) both exhausted a 512 MB hosting
+# instance: ONNX Runtime needs roughly double the weight file on top of the graph and
+# the tokenizer. The int8 graph is 113 MB and yields the same 384-dimension vectors,
+# so stored vectors and the retrieval code are unaffected by the choice.
+MODEL_FILE = "onnx/model_qint8_avx512_vnni.onnx"
 
 
 class TextEmbedder:
@@ -51,5 +52,7 @@ def _load_model():
         dim=EMBEDDING_DIMENSIONS,
         model_file=MODEL_FILE,
     )
-    # Limit ONNX Runtime worker threads on Render's small free instances.
-    return FastTextEmbedding(model_name=MODEL_NAME, threads=1)
+    # Two memory controls for a 512 MB instance: one worker thread keeps the runtime's
+    # thread-local buffers small, and disabling the CPU memory arena stops ONNX Runtime
+    # from reserving a large block up front that is never actually needed here.
+    return FastTextEmbedding(model_name=MODEL_NAME, threads=1, enable_cpu_mem_arena=False)
