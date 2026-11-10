@@ -1,6 +1,6 @@
 # MemoCard AI Database and Deployment Design
 
-**Status:** Proposed for developer review  
+**Status:** pgvector direction approved; migration 006 is local and awaits review/application
 **Scope:** Initial MVP relational data model and deployment constraints. This document does not create database objects or select new runtime services.
 
 ## 1. Deployment targets
@@ -8,7 +8,7 @@
 - **Frontend:** React hosted on Vercel.
 - **Backend:** Python + FastAPI hosted on Vercel Functions. Vercel currently documents the Python runtime as Beta. Function duration and package limits depend on the Vercel plan and configuration.
 - **Relational database:** Neon PostgreSQL. Application traffic should use Neon's pooled connection endpoint. Schema migration and administrative workflows may need a separate direct connection. Store connection strings as deployment secrets, never in Git.
-- **Vector database:** ChromaDB remains the selected vector database. Chroma's local persistent client is intended for development and testing; production should connect to a server-backed Chroma deployment. A hosted Chroma service or separately hosted Chroma server has not been selected.
+- **Vector search:** Neon PostgreSQL with the `pgvector` extension stores chunk embeddings beside their relational source records. This avoids a separately hosted vector database and keeps vector search in the approved Neon deployment.
 - **Uploaded file storage:** Private Vercel Blob is selected for user documents. FastAPI uploads files through the Vercel Python SDK; the MVP caps each upload at 4 MiB to stay below Vercel Function's 4.5 MB request-body limit. Function-local files are not used for durable storage.
 
 Long-running document extraction and indexing must fit the configured Vercel Function duration or be split into retryable steps. This document does not add a queue or background-job service.
@@ -22,6 +22,8 @@ erDiagram
     USER ||--o{ DOCUMENT : owns
     DOCUMENT ||--o{ DOCUMENT_CHUNK : contains
     USER ||--o{ CHAT_SESSION : owns
+    CHAT_SESSION ||--o{ CHAT_SESSION_DOCUMENT : searches
+    DOCUMENT ||--o{ CHAT_SESSION_DOCUMENT : selected_for
     CHAT_SESSION ||--o{ CHAT_MESSAGE : contains
     CHAT_MESSAGE ||--o{ MESSAGE_CITATION : cites
     DOCUMENT_CHUNK ||--o{ MESSAGE_CITATION : referenced_by
@@ -39,9 +41,10 @@ Use UUID primary keys for application entities, timestamptz for timestamps, and 
 | Table | Important fields and purpose |
 |---|---|
 | users | id, email, password_hash, display_name, timezone, created_at. Email is unique after normalization. Passwords are stored only as one-way hashes. timezone is an IANA timezone name and defaults to UTC. |
-| documents | id, user_id, original_filename, file_format, storage_key, size_bytes, status, error_message, created_at, updated_at, deleted_at. Status tracks upload and processing progress. The binary file is kept in private Vercel Blob; PostgreSQL stores its private pathname and metadata. |
-| document_chunks | id, document_id, chunk_index, content, page_number, slide_number, content_hash, created_at. The stable UUID maps to a Chroma record. PostgreSQL keeps the chunk text and source metadata for citations and reindexing; Chroma stores the embedding and a copy of the chunk text for retrieval. |
-| chat_sessions | id, user_id, title, created_at, updated_at. By default, a session searches the current user's ready documents unless a later decision adds per-session document selection. |
+| documents | id, user_id, original_filename, file_format, storage_key, size_bytes, status, error_message, created_at, updated_at, deleted_at. Status tracks upload and processing progress (`uploaded` → `processing` → `chunked` → `ready`, or `failed`). The binary file is kept in private Vercel Blob; PostgreSQL stores its private pathname and metadata. |
+| document_chunks | id, document_id, chunk_index, content, page_number, slide_number, content_hash, embedding vector(384), created_at. PostgreSQL stores source text, location, and the multilingual E5 embedding together for retrieval and citations. |
+| chat_sessions | id, user_id, title, created_at, updated_at. Owns one conversation and its optional persistent document scope. |
+| chat_session_documents | user_id, session_id, document_id, created_at. If rows exist, the chat searches only those documents; if none exist, it searches all of the user's ready documents. Composite foreign keys enforce same-user ownership. |
 | chat_messages | id, session_id, role, content, created_at. Roles are user or assistant; messages share the same ordered conversation. |
 | message_citations | message_id, document_chunk_id, rank, excerpt, page_number, slide_number. Connects an assistant response to the retrieved sources and source locations used to generate it. |
 | flashcards | id, user_id, source_message_id (nullable), question, answer, repetition_count, ease_factor, interval_days, last_reviewed_at, next_review_at, created_at, updated_at. The scheduling fields hold the current SM-2 state. |
@@ -55,36 +58,33 @@ Do not create a separate revision_schedules table for the MVP. The current sched
 ## 4. Ownership and integrity
 
 - Every user-owned API operation must verify ownership in PostgreSQL before returning or changing data.
-- Chroma metadata should include stable identifiers such as user_id, document_id, and document_chunk_id; retrieval must be filtered to the authenticated user's documents.
-- Chroma does not share PostgreSQL foreign keys or transactions. PostgreSQL IDs are cross-store references, and indexing/deletion operations need retryable status transitions.
+- Vector retrieval must join chunks to their document and filter by the authenticated user's ID and `documents.status = 'ready'`; a vector match alone never grants access.
+- Keeping vectors in Neon lets ownership filters and vector similarity run in one PostgreSQL query and transaction. It avoids cross-database indexing and deletion consistency problems.
 - Indexes should support common access paths: unique normalized email; documents by (user_id, status); chunks by (document_id, chunk_index); messages by (session_id, created_at); and due flashcards by (user_id, next_review_at).
-- Document deletion and retention need an explicit policy because documents can be referenced by chat citations and flashcard sources. The initial implementation should not hard-delete a document until its Chroma records and relational references are handled consistently.
+- Document deletion and retention need an explicit policy because documents can be referenced by chat citations and flashcard sources. The initial implementation should not hard-delete a document until its relational references are handled consistently.
 - A migration should enforce ownership consistency across relationships, preferably with composite foreign keys where practical. The exact constraints and delete behavior must be fixed before implementation.
 
 ## 5. Data flow across services
 
 1. Store an upload in the selected durable file store and create its documents record in PostgreSQL.
-2. Extract and split the file; record stable chunk identifiers and source locations in PostgreSQL.
-3. Write chunk text, embeddings, and identifying metadata to Chroma using those stable identifiers.
-4. Mark the document ready only after indexing succeeds; preserve a retryable error status on failure.
-5. For chat, verify the user's documents, retrieve matching Chroma chunks with a user filter, save messages and citation links in PostgreSQL, and call DeepSeek with the retrieved context.
+2. Extract and split the file; record stable chunk identifiers and source locations in PostgreSQL. `chunked` means text extraction is complete but vector embedding is pending.
+3. Generate multilingual E5 embeddings locally with FastEmbed and save all vectors to `document_chunks` in one transaction.
+4. Mark the document ready only after all vectors have been stored; preserve a retryable error status on failure.
+5. For chat, verify session ownership and document scope, retrieve matching pgvector chunks with owner/status filters, call DeepSeek with recent history and labelled excerpts, then save both messages and verified citation links in one PostgreSQL transaction.
 6. Save flashcards and source links in PostgreSQL; update SM-2 state and append a review event on each review.
 
-The sequence must account for partial failure because PostgreSQL and Chroma cannot participate in one transaction.
+Chunk content and embeddings share the same PostgreSQL transaction, so a document cannot become `ready` with a partial vector index. AI failures do not save a half-complete chat turn.
 
 ## 6. Decisions to settle before their implementation phase
 
-1. Will production Chroma be hosted by a managed Chroma service or by a separately operated Chroma server?
-2. Should chat search all of a user's ready documents, or should each session select a subset?
-3. What document deletion policy should preserve or remove existing citations and flashcard sources?
-4. Should the proposal's one-click flashcard generation, TTS, tagging, and 15-student SUS/accuracy evaluation be tracked as post-MVP requirements? The current AGENTS.md places TTS and tagging after the MVP but does not define the research evaluation work.
+1. What document deletion policy should preserve or remove existing citations and flashcard sources?
+2. Should the proposal's one-click flashcard generation, TTS, tagging, and 15-student SUS/accuracy evaluation be tracked as post-MVP requirements? The current AGENTS.md places TTS and tagging after the MVP but does not define the research evaluation work.
 
-Migration 003 adds users.timezone and a per-user flashcard review idempotency key; migration 004 adds PPTX and a retryable document-deletion state. Both files exist locally and have not been applied to Neon. The Vercel Blob store still needs to be created and connected in the Vercel project before live uploads can run.
+Migration 003 adds users.timezone and a per-user flashcard review idempotency key; migration 004 adds PPTX and a retryable document-deletion state; migration 005 adds the `chunked` processing state; migration 006 adds pgvector embeddings; migration 007 adds persistent chat document scope. These files exist locally and have not been applied to Neon. The Vercel Blob store still needs to be created and connected in the Vercel project before live uploads can run.
 
 ## 7. Official deployment references
 
 - [Vercel Python runtime](https://vercel.com/docs/functions/runtimes/python)
 - [Vercel Function limitations](https://vercel.com/docs/functions/limitations)
 - [Neon serverless connection pooling guide](https://github.com/neondatabase/website/blob/main/content/docs/guides/serverless-connection-pooling.md)
-- [Chroma deployment architecture](https://docs.trychroma.com/docs/overview/architecture)
-- [Chroma Python clients](https://docs.trychroma.com/reference/python)
+- [Neon pgvector guide](https://neon.com/docs/extensions/pgvector)

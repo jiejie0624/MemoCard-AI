@@ -19,6 +19,9 @@ from backend.app.storage.vercel_blob import (
     VercelBlobStorage,
 )
 from backend.app.documents.repository import PostgresDocumentRepository
+from backend.app.processing.chunking import build_document_chunks
+from backend.app.processing.embeddings import TextEmbedder
+from backend.app.processing.extraction import DocumentProcessingError, extract_document
 
 
 logger = logging.getLogger(__name__)
@@ -58,8 +61,13 @@ def get_document_storage() -> DocumentStorage:
     return VercelBlobStorage()
 
 
+def get_document_embedder() -> TextEmbedder:
+    return TextEmbedder()
+
+
 Repository = Annotated[PostgresDocumentRepository, Depends(get_document_repository)]
 Storage = Annotated[DocumentStorage, Depends(get_document_storage)]
+Embedder = Annotated[TextEmbedder, Depends(get_document_embedder)]
 AuthenticatedUser = Annotated[PublicUser, Depends(current_user)]
 
 
@@ -192,6 +200,128 @@ async def download_document(
             "Cache-Control": "private, no-store",
         },
     )
+
+
+async def _failed_processing_response(
+    repository: PostgresDocumentRepository,
+    user_id: UUID,
+    document_id: UUID,
+    message: str,
+) -> dict:
+    try:
+        await run_in_threadpool(repository.fail_processing, user_id, document_id, message)
+        document = await run_in_threadpool(repository.get_document, user_id, document_id)
+    except Exception as error:
+        logger.warning("Document processing status could not be saved (%s)", type(error).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The processing result could not be saved. Please retry later",
+        ) from error
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return document
+
+
+@router.post("/{document_id}/process", response_model=DocumentResponse)
+async def process_document(
+    document_id: UUID,
+    user: AuthenticatedUser,
+    repository: Repository,
+    storage: Storage,
+    embedder: Embedder,
+) -> dict:
+    try:
+        claim = await run_in_threadpool(repository.begin_processing, user.id, document_id)
+    except Exception as error:
+        logger.warning("Document processing could not start (%s)", type(error).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document processing is temporarily unavailable",
+        ) from error
+    if claim is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    document, claimed = claim
+    if not claimed:
+        return document
+
+    try:
+        content, _ = await storage.get(document["storage_key"])
+    except StorageFileNotFoundError:
+        return await _failed_processing_response(
+            repository, user.id, document_id, "The private file is missing. Re-upload this document."
+        )
+    except Exception as error:
+        logger.warning("Private document read for processing failed (%s)", type(error).__name__)
+        return await _failed_processing_response(
+            repository, user.id, document_id, "The private file could not be read. Retry processing later."
+        )
+
+    if len(content) > MAX_UPLOAD_BYTES or len(content) != document["size_bytes"]:
+        return await _failed_processing_response(
+            repository,
+            user.id,
+            document_id,
+            "The stored file does not match its upload metadata. Re-upload this document.",
+        )
+
+    try:
+        sections = await run_in_threadpool(extract_document, document["file_format"], content)
+        chunks = await run_in_threadpool(build_document_chunks, document_id, sections)
+        if not chunks:
+            raise DocumentProcessingError("No readable text chunks were produced from this document.")
+    except DocumentProcessingError as error:
+        return await _failed_processing_response(repository, user.id, document_id, str(error))
+    except Exception as error:
+        logger.warning("Document text extraction failed (%s)", type(error).__name__)
+        return await _failed_processing_response(
+            repository, user.id, document_id, "The document could not be processed. Check the file and retry."
+        )
+
+    try:
+        saved = await run_in_threadpool(
+            repository.replace_chunks_and_mark_chunked, user.id, document_id, chunks
+        )
+    except Exception as error:
+        logger.warning("Document chunks could not be saved (%s)", type(error).__name__)
+        return await _failed_processing_response(
+            repository, user.id, document_id, "The extracted text could not be saved. Retry processing."
+        )
+    if not saved:
+        current = await run_in_threadpool(repository.get_document, user.id, document_id)
+        if current is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return current
+
+    try:
+        embeddings = await run_in_threadpool(
+            embedder.embed_passages, [chunk.content for chunk in chunks]
+        )
+        if len(embeddings) != len(chunks) or any(len(vector) != 384 for vector in embeddings):
+            raise RuntimeError("The embedding model returned an unexpected vector shape")
+        indexed = await run_in_threadpool(
+            repository.save_embeddings_and_mark_ready, user.id, document_id, embeddings
+        )
+    except Exception as error:
+        logger.warning("Document vector indexing failed (%s)", type(error).__name__)
+        return await _failed_processing_response(
+            repository,
+            user.id,
+            document_id,
+            "The text was extracted but could not be indexed. Retry processing later.",
+        )
+    if not indexed:
+        current = await run_in_threadpool(repository.get_document, user.id, document_id)
+        if current is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return current
+
+    processed = await run_in_threadpool(repository.get_document, user.id, document_id)
+    if processed is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return processed
+
+
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: UUID,

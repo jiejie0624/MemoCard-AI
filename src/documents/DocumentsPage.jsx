@@ -21,6 +21,7 @@ function statusLabel(status) {
     uploading: "正在上传",
     uploaded: "等待处理",
     processing: "处理中",
+    chunked: "文字已提取，等待索引",
     ready: "可用于问答",
     failed: "处理失败",
     deleting: "等待完成删除",
@@ -67,9 +68,10 @@ async function requestDocuments(path, options = {}) {
   return payload;
 }
 
-function DocumentRow({ document, onDelete, onRetryDelete, deleting }) {
+function DocumentRow({ document, onDelete, onRetryDelete, onRetryProcessing, deleting, processing }) {
   const extension = document.file_format.toUpperCase();
   const isPendingDelete = document.status === "deleting";
+  const canRetryProcessing = document.status === "uploaded" || document.status === "failed";
 
   return (
     <li className="document-row">
@@ -112,6 +114,15 @@ function DocumentRow({ document, onDelete, onRetryDelete, deleting }) {
           >
             {deleting ? "清理中…" : "重试清理"}
           </button>
+        ) : canRetryProcessing ? (
+          <button
+            className="document-action document-action-retry"
+            type="button"
+            onClick={() => onRetryProcessing(document)}
+            disabled={processing}
+          >
+            {processing ? "处理中…" : document.status === "failed" ? "重试处理" : "开始处理"}
+          </button>
         ) : (
           <button
             className="document-action document-action-delete"
@@ -134,9 +145,11 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [processingId, setProcessingId] = useState(null);
   const [pageError, setPageError] = useState("");
   const [operationError, setOperationError] = useState("");
   const [confirmingDocument, setConfirmingDocument] = useState(null);
+  const hasProcessing = documents.some((document) => document.status === "processing");
 
   useEffect(() => {
     const dialog = deleteDialog.current;
@@ -164,6 +177,24 @@ export default function DocumentsPage() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    if (!hasProcessing) return undefined;
+    const controller = new AbortController();
+    const refresh = async () => {
+      try {
+        const items = await requestDocuments("", { signal: controller.signal });
+        setDocuments(items);
+      } catch {
+        // Keep the last known state visible when a background refresh briefly fails.
+      }
+    };
+    const timer = window.setInterval(refresh, 2000);
+    return () => {
+      window.clearInterval(timer);
+      controller.abort();
+    };
+  }, [hasProcessing]);
+
   async function handleUpload(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -178,13 +209,30 @@ export default function DocumentsPage() {
     const form = new FormData();
     form.append("file", file);
     try {
-      await requestDocuments("", { method: "POST", body: form });
+      const uploaded = await requestDocuments("", { method: "POST", body: form });
+      setProcessingId(uploaded.id);
+      await requestDocuments(`/${uploaded.id}/process`, { method: "POST" });
       await loadDocuments();
     } catch (error) {
       setOperationError(error.message);
       await loadDocuments();
     } finally {
       setUploading(false);
+      setProcessingId(null);
+    }
+  }
+
+  async function retryProcessing(document) {
+    setProcessingId(document.id);
+    setOperationError("");
+    try {
+      await requestDocuments(`/${document.id}/process`, { method: "POST" });
+      await loadDocuments();
+    } catch (error) {
+      setOperationError(error.message);
+      await loadDocuments();
+    } finally {
+      setProcessingId(null);
     }
   }
 
@@ -250,7 +298,11 @@ export default function DocumentsPage() {
             <strong>支持 PDF、UTF-8 TXT 和 PPTX</strong>
             <p>单个文件最大 4 MiB。旧式 PPT 暂不支持。</p>
           </div>
-          {uploading && <span className="uploading-indicator" role="status">安全上传中</span>}
+          {(uploading || processingId) && (
+            <span className="uploading-indicator" role="status">
+              {uploading ? "正在安全上传" : "正在提取文字并整理来源"}
+            </span>
+          )}
         </div>
 
         {operationError && <p className="documents-error" role="alert">{operationError}</p>}
@@ -282,7 +334,9 @@ export default function DocumentsPage() {
                 document={document}
                 onDelete={setConfirmingDocument}
                 onRetryDelete={performDelete}
+                onRetryProcessing={retryProcessing}
                 deleting={deletingId === document.id}
+                processing={processingId === document.id}
               />
             ))}
           </ul>

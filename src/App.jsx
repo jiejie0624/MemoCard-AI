@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import ChatPage from "./chat/ChatPage.jsx";
+import CalendarPage from "./calendar/CalendarPage.jsx";
 import DocumentsPage from "./documents/DocumentsPage.jsx";
+import FlashcardsPage from "./flashcards/FlashcardsPage.jsx";
+import ReviewPage from "./review/ReviewPage.jsx";
 import "./styles.css";
 
 const AUTH_API = "/api/auth";
@@ -68,6 +72,24 @@ async function requestAuth(path, { method = "GET", body } = {}) {
     throw new ApiError(errorMessage(payload, response.status, path), response.status);
   }
   return payload;
+}
+
+async function requestDashboardSummary() {
+  const response = await fetch("/api/dashboard/summary", {
+    credentials: "include",
+    signal: AbortSignal.timeout(12000),
+  });
+  let payload = null;
+  try { payload = await response.json(); } catch { /* use a friendly fallback */ }
+  if (!response.ok) {
+    throw new Error(typeof payload?.detail === "string" ? payload.detail : "学习摘要暂时无法加载。");
+  }
+  return payload;
+}
+
+function formatReviewDate(value, timezone) {
+  if (!value) return "暂无安排";
+  return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", timeZone: timezone }).format(new Date(value));
 }
 
 function Brand({ compact = false }) {
@@ -252,8 +274,24 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
   const [profileTimezone, setProfileTimezone] = useState(user.timezone || "UTC");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [summary, setSummary] = useState(null);
+  const [summaryError, setSummaryError] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
   const displayName = user.display_name || user.email;
   const initials = displayName.trim().slice(0, 1).toUpperCase();
+
+  useEffect(() => {
+    if (activeSection !== "home") return undefined;
+    let cancelled = false;
+    setSummaryLoading(true);
+    setSummaryError("");
+    requestDashboardSummary()
+      .then((result) => { if (!cancelled) setSummary(result); })
+      .catch((requestError) => { if (!cancelled) setSummaryError(requestError.message); })
+      .finally(() => { if (!cancelled) setSummaryLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeSection, summaryRefreshKey]);
 
   useEffect(() => {
     const dialog = profileDialog.current;
@@ -336,6 +374,42 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               <span className="nav-indicator" aria-hidden="true" />
               学习资料
             </button>
+            <button
+              className={`nav-item${activeSection === "chat" ? " is-current" : ""}`}
+              type="button"
+              aria-current={activeSection === "chat" ? "page" : undefined}
+              onClick={() => setActiveSection("chat")}
+            >
+              <span className="nav-indicator" aria-hidden="true" />
+              AI 问答
+            </button>
+            <button
+              className={`nav-item${activeSection === "flashcards" ? " is-current" : ""}`}
+              type="button"
+              aria-current={activeSection === "flashcards" ? "page" : undefined}
+              onClick={() => setActiveSection("flashcards")}
+            >
+              <span className="nav-indicator" aria-hidden="true" />
+              闪卡
+            </button>
+            <button
+              className={`nav-item${activeSection === "review" ? " is-current" : ""}`}
+              type="button"
+              aria-current={activeSection === "review" ? "page" : undefined}
+              onClick={() => setActiveSection("review")}
+            >
+              <span className="nav-indicator" aria-hidden="true" />
+              今日复习
+            </button>
+            <button
+              className={`nav-item${activeSection === "calendar" ? " is-current" : ""}`}
+              type="button"
+              aria-current={activeSection === "calendar" ? "page" : undefined}
+              onClick={() => setActiveSection("calendar")}
+            >
+              <span className="nav-indicator" aria-hidden="true" />
+              复习日历
+            </button>
           </nav>
         </div>
 
@@ -361,7 +435,18 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
 
       <main className="workspace-main">
         {error && <p className="dashboard-error" role="alert">{error}</p>}
-        {activeSection === "documents" ? <DocumentsPage /> : (
+        {activeSection === "documents" ? <DocumentsPage /> : activeSection === "chat" ? (
+          <ChatPage
+            onOpenDocuments={() => setActiveSection("documents")}
+            onOpenFlashcards={() => setActiveSection("flashcards")}
+          />
+        ) : activeSection === "flashcards" ? (
+          <FlashcardsPage />
+        ) : activeSection === "review" ? (
+          <ReviewPage />
+        ) : activeSection === "calendar" ? (
+          <CalendarPage onStartReview={() => setActiveSection("review")} />
+        ) : (
         <div className="workspace-content">
           <header className="dashboard-heading">
             <div>
@@ -380,10 +465,25 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               <p className="eyebrow review-eyebrow">今日学习</p>
               <h2 id="review-card-title">继续今天的复习</h2>
               <p>
-                之后，这里会根据你的闪卡进度整理待复习内容，帮你用合适的节奏巩固知识。
+                {summaryLoading ? "正在读取你的复习安排…" : summaryError
+                  ? "暂时无法读取复习安排，请重试或打开复习日历。"
+                  : `逾期 ${summary?.overdue_count ?? 0} 张 · 今天 ${summary?.today_count ?? 0} 张 · 未来 7 天 ${summary?.upcoming_count ?? 0} 张`}
               </p>
-              <button className="secondary-button" type="button" disabled>
-                复习模块准备中
+              {summaryError ? (
+                <button className="secondary-button" type="button" onClick={() => setActiveSection("calendar")}>
+                  查看复习日历
+                </button>
+              ) : (
+                <button className="secondary-button" type="button" onClick={() => setActiveSection("review")} disabled={summaryLoading}>
+                  {(summary?.overdue_count || summary?.today_count) ? "开始复习" : "查看复习安排"}
+                </button>
+              )}
+              {summary?.next_review_at && !summaryLoading && (
+                <span className="dashboard-next-review">下一张：{formatReviewDate(summary.next_review_at, summary.timezone)}</span>
+              )}
+              {summaryError && <button className="text-button" type="button" onClick={() => setSummaryRefreshKey((current) => current + 1)}>重新加载</button>}
+              <button className="text-button" type="button" onClick={() => setActiveSection("calendar")}>
+                打开复习日历 <span aria-hidden="true">→</span>
               </button>
             </div>
             <div className="review-art" aria-label="布里布里左卫门手绘图">
@@ -400,7 +500,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
             <div className="note-mark" aria-hidden="true">✦</div>
             <div>
               <h2 id="workspace-note-title">学习资料入口已开放</h2>
-              <p>上传课程资料后，AI 问答、闪卡和复习日历会逐步接入。</p>
+              <p>资料上传、AI 问答、闪卡管理、间隔复习和复习日历都已接入。</p>
               <button className="text-button home-documents-link" type="button" onClick={() => setActiveSection("documents")}>
                 前往学习资料 <span aria-hidden="true">→</span>
               </button>

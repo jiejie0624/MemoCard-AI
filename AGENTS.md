@@ -38,7 +38,7 @@ The following technologies define the project's current technical direction.
 | Frontend | React | User interface and web application |
 | Backend | Python + FastAPI | REST API and backend business logic |
 | Relational Database | PostgreSQL | Store users, documents, flashcards and revision records |
-| Vector Database | ChromaDB | Store document embeddings and perform semantic retrieval |
+| Vector Search | PostgreSQL + pgvector on Neon | Store document embeddings and perform semantic retrieval |
 | LLM Provider | DeepSeek API | AI question answering and flashcard generation |
 | AI Architecture | RAG | Ground AI responses in uploaded study materials |
 | Revision Algorithm | SM-2 | Calculate flashcard review intervals |
@@ -48,7 +48,7 @@ The following technologies define the project's current technical direction.
 - Use React for frontend development.
 - Use FastAPI for backend API development.
 - Use PostgreSQL as the primary relational database.
-- Use ChromaDB for vector storage and semantic retrieval.
+- Use PostgreSQL with the `pgvector` extension for vector storage and semantic retrieval.
 - Use DeepSeek API for LLM-related operations.
 - Keep AI model integration separate from business logic where practical.
 - Do not introduce additional frameworks, libraries, databases or external services without discussing their necessity with the developer first.
@@ -88,7 +88,7 @@ Do not attempt to implement every possible feature at once.
 - Store document metadata in PostgreSQL.
 - Extract document text.
 - Generate embeddings.
-- Store embeddings in ChromaDB.
+- Store embeddings in PostgreSQL using `pgvector`.
 - Associate uploaded documents with their respective users.
 
 #### Module 3: AI Chat with RAG
@@ -191,17 +191,17 @@ Responsible for storing structured relational data, including:
 - Flashcard review records.
 - Revision schedules.
 
-### ChromaDB
+### PostgreSQL with pgvector
 
-Responsible for:
+Responsible for structured data and vector search:
 
-- Storing document embeddings.
-- Semantic similarity searches.
-- Retrieving relevant document chunks for RAG.
+- Storing document chunks and their embeddings together.
+- Semantic similarity searches using pgvector.
+- Retrieving relevant document chunks for RAG with PostgreSQL ownership and status filters.
 
 ### AI Processing Workflow
 
-Document Upload → Text Extraction → Chunking → Embedding Generation → ChromaDB Storage → Semantic Retrieval → DeepSeek API → AI Response with Citations.
+Document Upload → Text Extraction → Chunking → Local Embedding Generation → Neon pgvector Storage → Semantic Retrieval → DeepSeek API → AI Response with Citations.
 
 ---
 

@@ -180,7 +180,16 @@ class AuthenticationTests(unittest.TestCase):
                 "/api/documents",
                 "/api/documents/{document_id}",
                 "/api/documents/{document_id}/file",
+                "/api/documents/{document_id}/process",
+                "/api/chat/sessions",
+                "/api/chat/sessions/{session_id}/messages",
+                "/api/flashcards/generate",
+                "/api/flashcards",
+                "/api/flashcards/{card_id}",
                 "/api/flashcards/{flashcard_id}/reviews",
+                "/api/revisions",
+                "/api/revisions/day",
+                "/api/dashboard/summary",
             },
         )
 

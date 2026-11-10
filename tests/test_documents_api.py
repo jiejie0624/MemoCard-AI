@@ -3,18 +3,25 @@ import json
 import unittest
 import zipfile
 from datetime import datetime, timezone
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 
 from backend.app.auth.routes import PublicUser, current_user
-from backend.app.documents.routes import get_document_repository, get_document_storage
+from backend.app.documents.routes import (
+    get_document_embedder,
+    get_document_repository,
+    get_document_storage,
+)
 from backend.app.main import app
+from backend.app.processing.extraction import TextSection
 
 
 class FakeDocumentRepository:
     def __init__(self) -> None:
         self.documents: dict[UUID, dict] = {}
+        self.chunks: dict[UUID, list] = {}
         self.fail_cleanup_update = False
 
     def create_document(
@@ -36,6 +43,7 @@ class FakeDocumentRepository:
             "status": "uploaded",
             "error_message": None,
             "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
             "deleted_at": None,
         }
         self.documents[document_id] = row
@@ -51,6 +59,42 @@ class FakeDocumentRepository:
     def get_document(self, user_id: UUID, document_id: UUID) -> dict | None:
         row = self.documents.get(document_id)
         return row.copy() if row and row["user_id"] == user_id else None
+
+    def begin_processing(self, user_id: UUID, document_id: UUID) -> tuple[dict, bool] | None:
+        row = self.documents.get(document_id)
+        if row is None or row["user_id"] != user_id or row["status"] in {"deleting", "deleted"}:
+            return None
+        if row["status"] not in {"uploaded", "failed"}:
+            return row.copy(), False
+        row["status"] = "processing"
+        row["error_message"] = None
+        return row.copy(), True
+
+    def replace_chunks_and_mark_chunked(self, user_id: UUID, document_id: UUID, chunks) -> bool:
+        row = self.documents.get(document_id)
+        if row is None or row["user_id"] != user_id or row["status"] != "processing":
+            return False
+        self.chunks[document_id] = list(chunks)
+        row["status"] = "chunked"
+        row["error_message"] = None
+        return True
+
+    def fail_processing(self, user_id: UUID, document_id: UUID, message: str) -> None:
+        row = self.documents.get(document_id)
+        if row and row["user_id"] == user_id and row["status"] in {"processing", "chunked"}:
+            row["status"] = "failed"
+            row["error_message"] = message
+
+    def save_embeddings_and_mark_ready(
+        self, user_id: UUID, document_id: UUID, embeddings: list[list[float]]
+    ) -> bool:
+        row = self.documents.get(document_id)
+        if row is None or row["user_id"] != user_id or row["status"] != "chunked":
+            return False
+        if len(self.chunks.get(document_id, [])) != len(embeddings):
+            raise RuntimeError("Embedding count mismatch")
+        row["status"] = "ready"
+        return True
 
     def begin_delete(self, user_id: UUID, document_id: UUID) -> dict | None:
         row = self.documents.get(document_id)
@@ -96,6 +140,16 @@ class FakeDocumentStorage:
         if self.fail_delete:
             raise RuntimeError("Storage is unavailable")
         self.objects.pop(pathname, None)
+
+
+class FakeDocumentEmbedder:
+    def __init__(self) -> None:
+        self.fail = False
+
+    def embed_passages(self, passages: list[str]) -> list[list[float]]:
+        if self.fail:
+            raise RuntimeError("embedding is unavailable")
+        return [[0.0] * 384 for _ in passages]
 
 
 def make_pdf_upload(filename: str = "lecture.pdf", content: bytes = b"%PDF-1.7\nexample") -> tuple[bytes, dict]:
@@ -163,6 +217,7 @@ class DocumentApiTests(unittest.IsolatedAsyncioTestCase):
         )
         self.repository = FakeDocumentRepository()
         self.storage = FakeDocumentStorage()
+        self.embedder = FakeDocumentEmbedder()
         self.authenticated = True
 
         def get_user() -> PublicUser:
@@ -173,6 +228,7 @@ class DocumentApiTests(unittest.IsolatedAsyncioTestCase):
         app.dependency_overrides[current_user] = get_user
         app.dependency_overrides[get_document_repository] = lambda: self.repository
         app.dependency_overrides[get_document_storage] = lambda: self.storage
+        app.dependency_overrides[get_document_embedder] = lambda: self.embedder
 
     def tearDown(self) -> None:
         app.dependency_overrides.clear()
@@ -201,6 +257,87 @@ class DocumentApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(download_body, b"%PDF-1.7\nexample")
         self.assertIn(b"private, no-store", download_headers[b"cache-control"])
         self.assertIn(b"nosniff", download_headers[b"x-content-type-options"])
+
+    async def test_txt_processing_saves_owned_chunks_and_is_idempotent(self) -> None:
+        body, headers = make_pdf_upload("lecture.txt", "记忆间隔 helps long-term learning.\nReview often.".encode())
+        status_code, _, upload_body = await asgi_request("POST", "/api/documents", body, headers)
+        self.assertEqual(status_code, 201)
+        document_id = UUID(json.loads(upload_body)["id"])
+
+        status_code, _, processed_body = await asgi_request(
+            "POST", f"/api/documents/{document_id}/process"
+        )
+        self.assertEqual(status_code, 200)
+        self.assertEqual(json.loads(processed_body)["status"], "ready")
+        chunks = self.repository.chunks[document_id]
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].content, "记忆间隔 helps long-term learning.\nReview often.")
+        self.assertIsNone(chunks[0].page_number)
+        self.assertIsNone(chunks[0].slide_number)
+
+        status_code, _, _ = await asgi_request("POST", f"/api/documents/{document_id}/process")
+        self.assertEqual(status_code, 200)
+        self.assertEqual(len(self.repository.chunks[document_id]), 1)
+
+    async def test_unreadable_pdf_is_marked_failed_with_explanation(self) -> None:
+        body, headers = make_pdf_upload("scan.pdf", b"%PDF-1.7\nnot a readable PDF")
+        status_code, _, upload_body = await asgi_request("POST", "/api/documents", body, headers)
+        self.assertEqual(status_code, 201)
+        document_id = UUID(json.loads(upload_body)["id"])
+
+        status_code, _, processed_body = await asgi_request(
+            "POST", f"/api/documents/{document_id}/process"
+        )
+        response = json.loads(processed_body)
+        self.assertEqual(status_code, 200)
+        self.assertEqual(response["status"], "failed")
+        self.assertTrue(response["error_message"])
+
+    async def test_failed_document_can_retry_processing(self) -> None:
+        body, headers = make_pdf_upload("retry.pdf", b"%PDF-1.7\ninvalid")
+        status_code, _, upload_body = await asgi_request("POST", "/api/documents", body, headers)
+        self.assertEqual(status_code, 201)
+        document_id = UUID(json.loads(upload_body)["id"])
+
+        _, _, failed_body = await asgi_request("POST", f"/api/documents/{document_id}/process")
+        self.assertEqual(json.loads(failed_body)["status"], "failed")
+
+        with patch(
+            "backend.app.documents.routes.extract_document",
+            return_value=[TextSection("Recovered text", page_number=1)],
+        ):
+            status_code, _, retried_body = await asgi_request(
+                "POST", f"/api/documents/{document_id}/process"
+            )
+        response = json.loads(retried_body)
+        self.assertEqual(status_code, 200)
+        self.assertEqual(response["status"], "ready")
+        self.assertEqual(self.repository.chunks[document_id][0].content, "Recovered text")
+
+    async def test_embedding_failure_does_not_mark_document_ready_and_can_retry(self) -> None:
+        body, headers = make_pdf_upload("retry-index.txt", b"Vector indexing retry.")
+        status_code, _, upload_body = await asgi_request("POST", "/api/documents", body, headers)
+        self.assertEqual(status_code, 201)
+        document_id = UUID(json.loads(upload_body)["id"])
+
+        self.embedder.fail = True
+        _, _, failed_body = await asgi_request("POST", f"/api/documents/{document_id}/process")
+        self.assertEqual(json.loads(failed_body)["status"], "failed")
+        self.assertEqual(
+            json.loads(failed_body)["error_message"],
+            "The text was extracted but could not be indexed. Retry processing later.",
+        )
+
+        self.embedder.fail = False
+        _, _, retried_body = await asgi_request("POST", f"/api/documents/{document_id}/process")
+        self.assertEqual(json.loads(retried_body)["status"], "ready")
+
+    async def test_processing_endpoint_rejects_other_users(self) -> None:
+        row = self.repository.create_document(
+            uuid4(), uuid4(), "private.txt", "txt", "other/private.txt", 4
+        )
+        status_code, _, _ = await asgi_request("POST", f"/api/documents/{row['id']}/process")
+        self.assertEqual(status_code, 404)
 
     async def test_upload_rejects_unsupported_type_invalid_signature_and_oversize(self) -> None:
         body, headers = make_pdf_upload("legacy.ppt", b"not a presentation")
