@@ -46,12 +46,13 @@ function responseError(status, detail) {
 }
 
 async function requestDocuments(path, options = {}) {
+  const { timeoutMs = 20000, ...requestOptions } = options;
   let response;
   try {
     response = await fetch(apiUrl(`/api/documents${path}`), {
-      ...options,
+      ...requestOptions,
       credentials: "include",
-      signal: options.signal || AbortSignal.timeout(20000),
+      signal: requestOptions.signal || AbortSignal.timeout(timeoutMs),
     });
   } catch {
     throw new Error("无法连接资料服务，请检查网络后重试。");
@@ -214,7 +215,7 @@ export default function DocumentsPage() {
     try {
       const uploaded = await requestDocuments("", { method: "POST", body: form });
       setProcessingId(uploaded.id);
-      await requestDocuments(`/${uploaded.id}/process`, { method: "POST" });
+      await requestDocuments(`/${uploaded.id}/process`, { method: "POST", timeoutMs: 120000 });
       await loadDocuments();
     } catch (error) {
       setOperationError(error.message);
@@ -229,7 +230,7 @@ export default function DocumentsPage() {
     setProcessingId(document.id);
     setOperationError("");
     try {
-      await requestDocuments(`/${document.id}/process`, { method: "POST" });
+      await requestDocuments(`/${document.id}/process`, { method: "POST", timeoutMs: 120000 });
       await loadDocuments();
     } catch (error) {
       setOperationError(error.message);
