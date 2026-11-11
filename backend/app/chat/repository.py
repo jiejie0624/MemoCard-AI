@@ -166,7 +166,11 @@ class ChatRepository:
                     ON d.id = dc.document_id AND d.user_id = dc.user_id
                 WHERE m.user_id = %s AND m.session_id = %s
                 GROUP BY m.id
-                ORDER BY m.created_at, m.id
+                -- A turn writes both messages in one transaction, so created_at ties.
+                -- The question must still come first, so role breaks the tie.
+                ORDER BY m.created_at,
+                         CASE m.role WHEN 'user' THEN 0 ELSE 1 END,
+                         m.id
                 """,
                 (user_id, session_id),
             ).fetchall()
