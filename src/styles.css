@@ -2703,3 +2703,7 @@ html[lang="en"] .analytics-heading h1 {
 
 /* "Sign in" and "Sign up" must not size themselves to their text. */
 .auth-tabs .auth-tab { flex: 1; }
+/* The English headline is short now, so it does not need display size; keeping the
+   block compact is what makes the page read as calm as the Chinese one. */
+html[lang="en"] .auth-story h1 { font-size: clamp(34px, 4vw, 46px); }
+html[lang="en"] .auth-story p { max-width: 34ch; }
