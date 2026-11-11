@@ -131,7 +131,11 @@ export default function FlashcardsPage() {
                 <>
                   <div className="flashcard-content">
                     <h2>{card.question}</h2>
-                    <p>{card.answer}</p>
+                    {/* A memory tool should not show the answer before the attempt. */}
+                    <details className="flashcard-answer">
+                      <summary>{t("显示答案")}</summary>
+                      <p>{card.answer}</p>
+                    </details>
                     <div className="flashcard-sources">
                       {card.sources.map((source) => (
                         <span key={`${source.document_id}-${source.document_chunk_id}`}>{source.document_name}</span>

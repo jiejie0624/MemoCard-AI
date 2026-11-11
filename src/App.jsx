@@ -290,6 +290,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
   const [documentCount, setDocumentCount] = useState(null);
+  const [flashcardCount, setFlashcardCount] = useState(null);
   const displayName = user.display_name || user.email;
   const initials = displayName.trim().slice(0, 1).toUpperCase();
 
@@ -308,12 +309,18 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
   useEffect(() => {
     if (activeSection !== "home") return undefined;
     let cancelled = false;
-    // The first screen has to lead somewhere useful: with no material yet, the review
-    // card would show an empty state while the real first step is uploading a file.
-    fetch(apiUrl("/api/documents"), { credentials: "include", signal: AbortSignal.timeout(12000) })
+    // The first screen has to lead somewhere useful, and "empty account" means no
+    // material AND no cards: cards outlive a deleted document, so checking documents
+    // alone told an active student to upload their first file.
+    const load = (path) => fetch(apiUrl(path), { credentials: "include", signal: AbortSignal.timeout(12000) })
       .then((response) => (response.ok ? response.json() : []))
-      .then((items) => { if (!cancelled) setDocumentCount(items.length); })
-      .catch(() => { if (!cancelled) setDocumentCount(null); });
+      .catch(() => []);
+    Promise.all([load("/api/documents"), load("/api/flashcards")])
+      .then(([documents, cards]) => {
+        if (cancelled) return;
+        setDocumentCount(documents.length);
+        setFlashcardCount(cards.length);
+      });
     return () => { cancelled = true; };
   }, [activeSection, summaryRefreshKey]);
 
@@ -490,13 +497,9 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               <h1>{t("你好，{name}", { name: displayName })}</h1>
               <p className="dashboard-subtitle">{t("把今天学到的内容，慢慢变成自己的知识。")}</p>
             </div>
-            <span className="workspace-status">
-              <span className="status-dot" aria-hidden="true" />
-              {t("个人空间")}
-            </span>
           </header>
 
-          {documentCount === 0 && (
+          {documentCount === 0 && flashcardCount === 0 && (
             <section className="workspace-note" aria-labelledby="start-card-title">
               <div className="note-mark" aria-hidden="true">✦</div>
               <div>
@@ -527,6 +530,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
                   {(summary?.overdue_count || summary?.today_count) ? t("开始复习") : t("查看复习安排")}
                 </button>
               )}
+            <div className="dashboard-meta-row">
               {summary?.next_review_at && !summaryLoading && (
                 <span className="dashboard-next-review">{t("下一张：{date}", { date: new Intl.DateTimeFormat(locale, { month: "long", day: "numeric", timeZone: summary.timezone }).format(new Date(summary.next_review_at)) })}</span>
               )}
@@ -535,6 +539,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
                 {t("打开复习日历 →")}
               </button>
             </div>
+          </div>
             <div className="review-art" aria-label={t("布里布里左卫门手绘图")}>
               <img
                 src="/images/buriburi-review.png"
