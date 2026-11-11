@@ -79,6 +79,7 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftError, setDraftError] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
   const [confirmingSession, setConfirmingSession] = useState(null);
   const [deletingSession, setDeletingSession] = useState(false);
   const bottomRef = useRef(null);
@@ -265,12 +266,18 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
           <h1>{t("AI 问答")}</h1>
           <p>{t("结合已处理的课程资料回答，并附上可核对的来源。")}</p>
         </div>
-        <button className="primary-button chat-new-button" type="button" onClick={startNewSession}>
-          {t("新建对话")}
-        </button>
+        <div className="chat-heading-actions">
+          <button className="text-button" type="button" onClick={() => setShowHistory((value) => !value)} aria-expanded={showHistory}>
+            {showHistory ? t("收起对话历史") : t("对话历史 · {count}", { count: sessions.length })}
+          </button>
+          <button className="primary-button chat-new-button" type="button" onClick={startNewSession}>
+            {t("新建对话")}
+          </button>
+        </div>
       </header>
 
       <section className="chat-workspace" aria-label={t("AI 问答工作区")}>
+        {showHistory && (
         <aside className="chat-session-list" aria-label={t("对话历史")}>
           <div className="chat-session-list-heading">
             <h2>{t("对话")}</h2>
@@ -297,6 +304,7 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
             </div>
           )) : <p className="chat-session-empty">{t("发送第一个问题后，对话会显示在这里。")}</p>}
         </aside>
+        )}
 
         <div className="chat-thread">
           <div className="chat-thread-topline">

@@ -64,6 +64,8 @@ Object.assign(en, {
   "逾期 {days} 天": "{days} days overdue",
   "{count} 张": "{count} cards",
   "删除整组": "Delete group",
+  "收起对话历史": "Hide history",
+  "对话历史 · {count}": "History · {count}",
   "连续复习": "Streak",
   "共 {count} 张": "{count} cards",
   "保存闪卡后，这里会显示掌握程度。": "Save cards and your mastery appears here.",

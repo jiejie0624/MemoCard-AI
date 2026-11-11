@@ -2580,3 +2580,8 @@ a[role="button"]:active {
    now sit on the page surface and are separated by one hairline. */
 .chat-workspace { background: transparent; border: 0; box-shadow: none; border-radius: 0; }
 .chat-session-list { background: transparent; box-shadow: none; border-radius: 0; border-right: 1px solid var(--divider); }
+/* The conversation owns the page; history is a panel you open when you need it, not a
+   permanent column that shrinks the thread. */
+.chat-heading-actions { display: flex; align-items: center; gap: 14px; }
+.chat-workspace { grid-template-columns: 1fr; }
+.chat-workspace:has(.chat-session-list) { grid-template-columns: 300px minmax(0, 1fr); }
