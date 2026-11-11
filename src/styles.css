@@ -2551,7 +2551,7 @@ a[role="button"]:active {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.workspace-main > * { animation: page-enter 180ms cubic-bezier(.2, .75, .25, 1) both; }
+.workspace-main > * { animation: page-enter 340ms cubic-bezier(.22, .61, .36, 1) both; }
 
 @media (prefers-reduced-motion: reduce) {
   .workspace-main > * { animation: none; }
