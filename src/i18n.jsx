@@ -134,6 +134,9 @@ Object.assign(en, {
   "暂时无法加载对话列表。": "Couldn't load your chats.",
   "删除对话失败，请稍后重试。": "Couldn't delete the chat. Please try again.",
   "无法连接问答服务，请检查网络后重试。": "Can't connect to the AI chat service. Check your connection and try again.",
+  "已选择 1 份资料": "1 material selected",
+  "搜索全部已就绪资料 · 1 份": "Searching 1 ready material",
+  "搜索全部已就绪资料 · {count} 份": "Searching {count} ready materials",
 });
 
 function interpolate(value, params) {

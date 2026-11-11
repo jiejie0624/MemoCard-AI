@@ -2878,3 +2878,79 @@ html[lang="en"] .auth-story p { max-width: 34ch; }
   .nav-group.is-open > .nav-item { width: 100%; }
   .nav-chat-sessions { max-height: 220px; }
 }
+
+/* --- Chat reading column and message rhythm ------------------------------
+   The header, transcript, empty state and composer share one centered column.
+   That keeps the title, the answer text and the input from feeling like three
+   unrelated layouts, and gives messages a predictable width on wide screens. */
+.chat-page { --chat-content-width: 760px; }
+.chat-workspace { min-height: 0; }
+
+.chat-page-heading,
+.chat-thread-topline > div,
+.chat-message,
+.chat-empty-state,
+.chat-thinking,
+.chat-error,
+.chat-composer {
+  width: min(var(--chat-content-width), 100%);
+  margin-inline: auto;
+}
+
+/* The page heading sits outside the card, so subtract the thread's own padding
+   to keep its edges aligned with the transcript on narrow screens. */
+.chat-page-heading {
+  width: min(var(--chat-content-width), calc(100% - 2 * clamp(16px, 2.4vw, 28px)));
+}
+
+.chat-thread-topline { justify-content: center; padding-inline: 0; }
+.chat-message-list { padding-inline: 0; }
+
+/* Keep the action on one line when the description wraps beside it. */
+.chat-new-button { flex: 0 0 auto; white-space: nowrap; }
+
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: none;
+  margin: 0 auto 24px;
+}
+
+.chat-message-user {
+  align-items: flex-end;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
+.chat-message-assistant { align-items: stretch; }
+.chat-message-label { margin-bottom: 0; }
+
+.chat-message-bubble {
+  max-width: min(76%, 560px);
+  padding: 12px 16px;
+  border-radius: 18px 18px 5px 18px;
+  background: #edf4ff;
+}
+
+.chat-message-bubble .chat-message-content { color: #24364f; }
+
+.chat-message-content,
+.chat-page-heading p:last-child { text-wrap: pretty; }
+
+/* A short first exchange should not leave a large empty pocket above the
+   composer. Longer threads still grow and scroll with the page. */
+.chat-message-list { min-height: 0; }
+.chat-empty-state { margin-inline: auto; }
+
+.chat-composer textarea { resize: none; }
+
+/* The disabled send action was still reading as a blue button. */
+.chat-composer .primary-button:disabled {
+  border-color: #e3e9f2;
+  background: #edf1f7;
+  color: #9aa7b8;
+  box-shadow: none;
+  opacity: 1;
+}

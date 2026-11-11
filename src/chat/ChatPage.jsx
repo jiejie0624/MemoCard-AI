@@ -247,8 +247,12 @@ export default function ChatPage({
               <strong>{activeSession ? formatSessionTitle(activeSession, t) : t("开始一个新对话")}</strong>
               <span>
                 {activeSession?.all_documents === false
-                  ? t("已选择 {count} 份资料", { count: selectedDocumentIds.length })
-                  : t("搜索全部已就绪资料 · {count} 份", { count: readyDocuments.length })}
+                  ? selectedDocumentIds.length === 1
+                    ? t("已选择 1 份资料")
+                    : t("已选择 {count} 份资料", { count: selectedDocumentIds.length })
+                  : readyDocuments.length === 1
+                    ? t("搜索全部已就绪资料 · 1 份")
+                    : t("搜索全部已就绪资料 · {count} 份", { count: readyDocuments.length })}
               </span>
             </div>
 
@@ -295,9 +299,13 @@ export default function ChatPage({
             {messages.map((message) => (
               <article className={`chat-message chat-message-${message.role}`} key={message.id}>
                 <div className="chat-message-label">{message.role === "user" ? t("你") : "MemoCard AI"}</div>
-                <div className="chat-message-content">{message.content}</div>
-                {message.role === "assistant" && (
+                {message.role === "user" ? (
+                  <div className="chat-message-bubble">
+                    <div className="chat-message-content">{message.content}</div>
+                  </div>
+                ) : (
                   <>
+                    <div className="chat-message-content">{message.content}</div>
                     <CitationList citations={message.citations} />
                     {message.citations?.length > 0 && (
                       <button className="text-button chat-generate-cards" type="button"
