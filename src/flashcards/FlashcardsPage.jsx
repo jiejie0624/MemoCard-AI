@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "../api.js";
 import { useLanguage } from "../i18n.jsx";
 
@@ -30,6 +30,17 @@ export default function FlashcardsPage() {
   const [draft, setDraft] = useState({ question: "", answer: "" });
   const [busyId, setBusyId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmingGroup, setConfirmingGroup] = useState(null);
+  const groupDialog = useRef(null);
+
+  // Uses the project's native <dialog> so deleting a group looks and behaves like every
+  // other destructive action, instead of the browser's confirm popup.
+  useEffect(() => {
+    const dialog = groupDialog.current;
+    if (!dialog) return;
+    if (confirmingGroup && !dialog.open) dialog.showModal();
+    if (!confirmingGroup && dialog.open) dialog.close();
+  }, [confirmingGroup]);
 
   const loadCards = useCallback(async () => {
     setLoading(true);
@@ -84,9 +95,8 @@ export default function FlashcardsPage() {
   }
 
   async function deleteGroup(group) {
-    if (!group.cards.length) return;
-    const label = t("删除「{name}」的 {count} 张卡片？", { name: group.name, count: group.cards.length });
-    if (!window.confirm(label)) return;
+    if (!group || !group.cards.length) return;
+    setConfirmingGroup(null);
     setBusyId("group");
     setError("");
     try {
@@ -153,7 +163,7 @@ export default function FlashcardsPage() {
                   className="text-button is-danger flashcards-group-delete"
                   type="button"
                   disabled={busyId === "group"}
-                  onClick={(event) => { event.preventDefault(); event.stopPropagation(); deleteGroup(group); }}
+                  onClick={(event) => { event.preventDefault(); event.stopPropagation(); setConfirmingGroup(group); }}
                 >
                   {t("删除整组")}
                 </button>
@@ -215,6 +225,30 @@ export default function FlashcardsPage() {
           ))}
         </section>
       )}
+      <dialog
+        ref={groupDialog}
+        className="profile-dialog"
+        aria-labelledby="flashcard-group-delete-title"
+        onCancel={(event) => { event.preventDefault(); setConfirmingGroup(null); }}
+        onClose={() => setConfirmingGroup(null)}
+      >
+        <div className="profile-dialog-heading">
+          <div>
+            <p className="eyebrow">{t("删除整组")}</p>
+            <h2 id="flashcard-group-delete-title">{t("删除这个文件下的全部卡片？")}</h2>
+          </div>
+          <button className="dialog-close" type="button" aria-label={t("取消删除")} onClick={() => setConfirmingGroup(null)}>×</button>
+        </div>
+        <p className="document-delete-copy">
+          {confirmingGroup?.name}{t("的 {count} 张卡片都会被删除，删除后无法恢复。", { count: confirmingGroup?.cards.length ?? 0 })}
+        </p>
+        <div className="profile-actions">
+          <button className="cancel-button" type="button" onClick={() => setConfirmingGroup(null)} disabled={busyId === "group"}>{t("取消")}</button>
+          <button className="danger-button" type="button" onClick={() => deleteGroup(confirmingGroup)} disabled={busyId === "group"}>
+            {busyId === "group" ? t("正在删除…") : t("确认删除")}
+          </button>
+        </div>
+      </dialog>
     </main>
   );
 }

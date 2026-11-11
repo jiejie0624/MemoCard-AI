@@ -64,6 +64,8 @@ Object.assign(en, {
   "逾期 {days} 天": "{days} days overdue",
   "{count} 张": "{count} cards",
   "删除整组": "Delete group",
+  "删除这个文件下的全部卡片？": "Delete every card from this file?",
+  "的 {count} 张卡片都会被删除，删除后无法恢复。": " — all {count} cards will be removed and cannot be recovered.",
   "删除「{name}」的 {count} 张卡片？": "Delete all {count} cards from 「{name}」?",
   "掌握程度": "How well you know your cards",
   "新卡": "New",
