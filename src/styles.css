@@ -2658,3 +2658,19 @@ a[role="button"]:active {
 }
 .chat-composer .composer-plus { order: -1; }
 .chat-composer > .primary-button { flex: 0 0 auto; }
+/* Composer: no helper text, no stray labels — one field, one plus, one send. Pinned to
+   the bottom of the viewport so it stays with you while the transcript scrolls. */
+.chat-composer > span { display: none; }
+.chat-composer {
+  position: sticky;
+  bottom: 16px;
+  z-index: 6;
+  padding: 10px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 12px 32px rgba(40, 73, 120, .12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.chat-composer textarea { border: 0; background: transparent; box-shadow: none; }
