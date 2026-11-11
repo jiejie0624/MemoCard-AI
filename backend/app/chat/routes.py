@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator
 
@@ -166,6 +166,22 @@ async def get_chat_messages(
     except Exception as error:
         logger.warning("Chat messages could not be loaded (%s)", type(error).__name__)
         raise HTTPException(status_code=503, detail="Chat is temporarily unavailable") from error
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_chat_session(
+    session_id: UUID,
+    user: AuthenticatedUser,
+    repository: Repository,
+) -> Response:
+    try:
+        deleted = await run_in_threadpool(repository.delete_session, user.id, session_id)
+    except Exception as error:
+        logger.warning("Chat session could not be deleted (%s)", type(error).__name__)
+        raise HTTPException(status_code=503, detail="Chat is temporarily unavailable") from error
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/sessions/{session_id}/messages", response_model=list[ChatMessage])

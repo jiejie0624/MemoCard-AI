@@ -182,14 +182,17 @@ class AuthenticationTests(unittest.TestCase):
                 "/api/documents/{document_id}/file",
                 "/api/documents/{document_id}/process",
                 "/api/chat/sessions",
+                "/api/chat/sessions/{session_id}",
                 "/api/chat/sessions/{session_id}/messages",
                 "/api/flashcards/generate",
                 "/api/flashcards",
                 "/api/flashcards/{card_id}",
+                "/api/flashcards/{card_id}/answer-check",
                 "/api/flashcards/{flashcard_id}/reviews",
                 "/api/revisions",
                 "/api/revisions/day",
                 "/api/dashboard/summary",
+                "/api/analytics/summary",
             },
         )
 

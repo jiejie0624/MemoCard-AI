@@ -129,6 +129,11 @@ class FlashcardRepository:
         with self._connect() as connection:
             return self._get_cards(connection, user_id)
 
+    def get_card(self, user_id: UUID, card_id: UUID) -> dict | None:
+        with self._connect() as connection:
+            cards = self._get_cards(connection, user_id, [card_id])
+            return cards[0] if cards else None
+
     def update_card(self, user_id: UUID, card_id: UUID, question: str, answer: str) -> dict | None:
         with self._connect() as connection:
             updated = connection.execute(

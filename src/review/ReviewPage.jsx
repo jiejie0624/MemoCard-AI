@@ -3,14 +3,11 @@ import { apiUrl } from "../api.js";
 import { useLanguage } from "../i18n.jsx";
 
 const PENDING_REVIEW_KEY = "memocard.pending-review.v1";
-const QUALITY_OPTIONS = [
-  { quality: 0, label: "完全忘记" },
-  { quality: 1, label: "几乎没想起" },
-  { quality: 2, label: "想起一点" },
-  { quality: 3, label: "很困难" },
-  { quality: 4, label: "有些犹豫" },
-  { quality: 5, label: "轻松记得" },
-];
+// The binary verdict maps onto SM-2 without inventing a score: a recalled card is a
+// "good" answer, a missed one restarts the sequence, and skipping counts as a failure.
+const QUALITY_CORRECT = 4;
+const QUALITY_WRONG = 2;
+const QUALITY_SKIPPED = 1;
 
 async function request(path, options = {}) {
   let response;
@@ -20,7 +17,7 @@ async function request(path, options = {}) {
       credentials: "include",
       headers: options.body ? { "Content-Type": "application/json" } : undefined,
       body: options.body ? JSON.stringify(options.body) : undefined,
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(options.timeoutMs || 15000),
     });
   } catch {
     throw new Error("暂时无法连接复习服务，请检查网络后重试。");
@@ -59,6 +56,11 @@ export default function ReviewPage() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [revealed, setRevealed] = useState(false);
+  // null = the card has not been checked yet; {correct: null} = the check failed and
+  // the student makes the call instead.
+  const [verdict, setVerdict] = useState(null);
+  const [answerDraft, setAnswerDraft] = useState("");
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
   const [pendingReview, setPendingReview] = useState(readPendingReview);
   const [submittingQuality, setSubmittingQuality] = useState(null);
@@ -88,8 +90,41 @@ export default function ReviewPage() {
 
   useEffect(() => {
     setRevealed(false);
+    setVerdict(null);
+    setAnswerDraft("");
     setError("");
   }, [currentCard?.id]);
+
+  async function checkAnswer(event) {
+    event.preventDefault();
+    const answer = answerDraft.trim();
+    if (!currentCard || !answer || checking) return;
+    setChecking(true);
+    setError("");
+    try {
+      const result = await request(`/api/flashcards/${currentCard.id}/answer-check`, {
+        method: "POST",
+        body: { answer },
+        // The model needs a moment; keep it below the point where a retry feels stalled.
+        timeoutMs: 30000,
+      });
+      setVerdict({ correct: result.correct === true, feedback: result.feedback || "" });
+      setRevealed(true);
+    } catch (requestError) {
+      // Falling back to the student's own judgement keeps the review usable when the
+      // provider is down; the answer is shown either way.
+      setError(requestError.message);
+      setVerdict({ correct: null, feedback: "" });
+      setRevealed(true);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  function skipToAnswer() {
+    setVerdict({ correct: null, feedback: "" });
+    setRevealed(true);
+  }
 
   async function submitReview(quality) {
     if (!currentCard || !revealed || submittingQuality !== null) return;
@@ -130,6 +165,9 @@ export default function ReviewPage() {
   }
 
   const pendingForCurrent = pendingReview?.cardId === currentCard?.id;
+  const checkedQuality = verdict && verdict.correct !== null
+    ? (verdict.correct ? QUALITY_CORRECT : QUALITY_WRONG)
+    : null;
 
   return (
     <main className="review-page">
@@ -137,7 +175,7 @@ export default function ReviewPage() {
         <div>
           <p className="eyebrow">{t("MEMOCARD AI · 间隔复习")}</p>
           <h1>{t("今日复习")}</h1>
-          <p>{t("先回想答案，再按记忆难度评分，系统会安排下一次复习。")}</p>
+          <p>{t("先自己写下答案，再由 AI 判断是否答对；复习间隔会自动安排。")}</p>
         </div>
         {!loading && !error && sessionTotal > 0 && (
           <div className="review-progress" aria-live="polite">
@@ -163,35 +201,96 @@ export default function ReviewPage() {
             <span>{t("第 {count} 张", { count: sessionTotal - dueCards.length + 1 })}</span>
             {currentCard.sources?.[0]?.document_name && <span>{currentCard.sources[0].document_name}</span>}
           </div>
-          <article className="review-flashcard" aria-live="polite">
-            <p className="eyebrow">{revealed ? t("答案") : t("问题")}</p>
-            <h2 id="review-question-title">{revealed ? currentCard.answer : currentCard.question}</h2>
-            {!revealed && <button className="primary-button" type="button" onClick={() => setRevealed(true)}>{t("显示答案")}</button>}
+
+          <article className="review-flashcard">
+            <p className="eyebrow">{t("问题")}</p>
+            <h2 id="review-question-title">{currentCard.question}</h2>
+
+            {!revealed && (
+              <form className="review-answer-form" onSubmit={checkAnswer}>
+                <label>
+                  <span>{t("写下你的答案")}</span>
+                  <textarea
+                    value={answerDraft}
+                    onChange={(event) => setAnswerDraft(event.target.value)}
+                    rows={3}
+                    maxLength={5000}
+                    placeholder={t("用一句话或几个要点回答")}
+                    disabled={checking}
+                  />
+                </label>
+                <div className="review-answer-actions">
+                  <button className="text-button" type="button" onClick={skipToAnswer} disabled={checking}>
+                    {t("不会，直接看答案")}
+                  </button>
+                  <button className="primary-button" type="submit" disabled={checking || !answerDraft.trim()}>
+                    {checking ? t("正在检查…") : t("提交答案")}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {revealed && (
+              <div className="review-result">
+                {verdict && verdict.correct !== null && (
+                  <p className={`review-verdict ${verdict.correct ? "is-correct" : "is-wrong"}`} role="status">
+                    <strong>{verdict.correct ? t("✓ 答对了") : t("✗ 还不对")}</strong>
+                    {verdict.feedback && <span>{verdict.feedback}</span>}
+                  </p>
+                )}
+                {verdict && verdict.correct === null && (
+                  <p className="review-verdict is-unknown" role="status">{t("暂时无法自动判断，请看参考答案后自己选择。")}</p>
+                )}
+                <div className="review-reference">
+                  <p className="eyebrow">{t("参考答案")}</p>
+                  <p>{currentCard.answer}</p>
+                </div>
+              </div>
+            )}
           </article>
 
           {revealed && (
-            <section className="review-rating" aria-labelledby="review-rating-title">
-              <h3 id="review-rating-title">{t("你记得怎么样？")}</h3>
-              <p>{t("0–2 表示没能回忆，3–5 表示答对；评分会调整下一次复习间隔。")}</p>
-              <div className="review-quality-options">
-                {QUALITY_OPTIONS.map(({ quality, label }) => {
-                  const retryBlocked = pendingForCurrent && pendingReview.quality !== quality;
-                  return (
-                    <button
-                      className="review-quality-button"
-                      key={quality}
-                      type="button"
-                      disabled={submittingQuality !== null || retryBlocked}
-                      aria-label={t("{score} 分：{label}", { score: quality, label: t(label) })}
-                      onClick={() => submitReview(quality)}
-                    >
-                      <strong>{quality}</strong>
-                      <span>{submittingQuality === quality ? t("保存中…") : pendingForCurrent && pendingReview.quality === quality ? t("重试") : t(label)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
+            <div className="review-actions">
+              {checkedQuality !== null ? (
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => submitReview(checkedQuality)}
+                  disabled={submittingQuality !== null}
+                >
+                  {submittingQuality !== null ? t("保存中…") : t("继续")}
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => submitReview(QUALITY_WRONG)}
+                    disabled={submittingQuality !== null}
+                  >
+                    {t("我答错了")}
+                  </button>
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => submitReview(QUALITY_CORRECT)}
+                    disabled={submittingQuality !== null}
+                  >
+                    {t("我答对了")}
+                  </button>
+                </>
+              )}
+              {pendingForCurrent && (
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => submitReview(pendingReview.quality)}
+                  disabled={submittingQuality !== null}
+                >
+                  {t("重试上次评分")}
+                </button>
+              )}
+            </div>
           )}
         </section>
       ) : (

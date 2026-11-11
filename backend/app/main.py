@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from backend.app.analytics.routes import router as analytics_router
 from backend.app.auth.routes import router as auth_router
 from backend.app.calendar.routes import router as calendar_router
 from backend.app.chat.routes import router as chat_router
@@ -40,6 +41,7 @@ async def reject_untrusted_browser_origins(request: Request, call_next):
         return JSONResponse(status_code=403, content={"detail": "Untrusted request origin"})
     return await call_next(request)
 
+app.include_router(analytics_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(calendar_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")

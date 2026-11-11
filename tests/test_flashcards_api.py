@@ -49,6 +49,15 @@ class FakeFlashcardRepository:
     def list_cards(self, user_id):
         return []
 
+    def get_card(self, user_id, card_id):
+        if user_id != self.user_id:
+            return None
+        return {
+            "id": card_id,
+            "question": "How does spaced repetition help?",
+            "answer": "It increases the review intervals as recall succeeds.",
+        }
+
 
 class FakeFlashcardProvider:
     def __init__(self):
@@ -163,6 +172,29 @@ class FlashcardApiTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(status_code, 502)
         self.assertEqual(self.repository.created, [])
+
+    async def test_answer_check_returns_a_binary_verdict(self):
+        self.provider.response = json.dumps({"correct": True, "feedback": "You named the key idea."})
+        status_code, body = await asgi_request(
+            "POST", f"/api/flashcards/{uuid4()}/answer-check",
+            json.dumps({"answer": "Intervals grow as you remember."}).encode(),
+            {"content-type": "application/json"},
+        )
+        self.assertEqual(status_code, 200)
+        verdict = json.loads(body)
+        self.assertTrue(verdict["correct"])
+        self.assertEqual(verdict["feedback"], "You named the key idea.")
+        self.assertEqual(self.provider.response_format, {"type": "json_object"})
+
+    async def test_answer_check_rejects_a_malformed_verdict(self):
+        # "correct" must be a real boolean: a truthy string would mark every answer right.
+        self.provider.response = json.dumps({"correct": "yes"})
+        status_code, _ = await asgi_request(
+            "POST", f"/api/flashcards/{uuid4()}/answer-check",
+            json.dumps({"answer": "Something"}).encode(),
+            {"content-type": "application/json"},
+        )
+        self.assertEqual(status_code, 502)
 
 
 if __name__ == "__main__":

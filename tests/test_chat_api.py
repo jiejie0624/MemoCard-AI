@@ -43,6 +43,12 @@ class FakeChatRepository:
     def get_session(self, user_id, session_id):
         return self.sessions.get(session_id) if user_id == self.user_id else None
 
+    def delete_session(self, user_id, session_id):
+        if user_id != self.user_id or session_id not in self.sessions:
+            return False
+        del self.sessions[session_id]
+        return True
+
     def retrieve_chunks(self, user_id, session_id, query_embedding, limit=6):
         if user_id != self.user_id or session_id not in self.sessions:
             return []
@@ -192,6 +198,20 @@ class ChatApiTests(unittest.IsolatedAsyncioTestCase):
             "GET", f"/api/chat/sessions/{session['id']}/messages"
         )
         self.assertEqual(status_code, 404)
+
+    async def test_deleting_a_session_removes_it_from_the_list(self):
+        session = self.repository.create_session(self.user_id, uuid4(), None)
+        status_code, body = await asgi_request("DELETE", f"/api/chat/sessions/{session['id']}")
+        self.assertEqual(status_code, 204)
+        self.assertEqual(body, b"")
+        self.assertEqual(self.repository.list_sessions(self.user_id), [])
+
+    async def test_other_users_cannot_delete_a_session(self):
+        session = self.repository.create_session(self.user_id, uuid4(), None)
+        self.user = self.user.model_copy(update={"id": uuid4()})
+        status_code, _ = await asgi_request("DELETE", f"/api/chat/sessions/{session['id']}")
+        self.assertEqual(status_code, 404)
+        self.assertEqual(len(self.repository.list_sessions(self.user_id)), 1)
 
 
 if __name__ == "__main__":

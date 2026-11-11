@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { apiUrl } from "./api.js";
+import AnalyticsPage from "./analytics/AnalyticsPage.jsx";
 import ChatPage from "./chat/ChatPage.jsx";
 import CalendarPage from "./calendar/CalendarPage.jsx";
 import DocumentsPage from "./documents/DocumentsPage.jsx";
@@ -411,6 +412,15 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               <span className="nav-indicator" aria-hidden="true" />
               {t("复习日历")}
             </button>
+            <button
+              className={`nav-item${activeSection === "analytics" ? " is-current" : ""}`}
+              type="button"
+              aria-current={activeSection === "analytics" ? "page" : undefined}
+              onClick={() => setActiveSection("analytics")}
+            >
+              <span className="nav-indicator" aria-hidden="true" />
+              {t("学习数据")}
+            </button>
           </nav>
         </div>
 
@@ -447,6 +457,8 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
           <ReviewPage />
         ) : activeSection === "calendar" ? (
           <CalendarPage onStartReview={() => setActiveSection("review")} />
+        ) : activeSection === "analytics" ? (
+          <AnalyticsPage />
         ) : (
         <div className="workspace-content">
           <header className="dashboard-heading">

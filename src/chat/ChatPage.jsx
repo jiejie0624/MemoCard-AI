@@ -79,7 +79,10 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftError, setDraftError] = useState("");
+  const [confirmingSession, setConfirmingSession] = useState(null);
+  const [deletingSession, setDeletingSession] = useState(false);
   const bottomRef = useRef(null);
+  const deleteDialog = useRef(null);
 
   const readyDocuments = documents.filter((document) => document.status === "ready");
 
@@ -120,6 +123,15 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, sending]);
 
+  // The native dialog owns focus and Esc; state only decides whether it is open, so a
+  // cancelled deletion restores the trigger instead of leaving the page in a stale state.
+  useEffect(() => {
+    const dialog = deleteDialog.current;
+    if (!dialog) return;
+    if (confirmingSession && !dialog.open) dialog.showModal();
+    if (!confirmingSession && dialog.open) dialog.close();
+  }, [confirmingSession]);
+
   function startNewSession() {
     setActiveSession(null);
     setMessages([]);
@@ -137,6 +149,29 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
       setMessages(await chatRequest(`/sessions/${session.id}/messages`));
     } catch (requestError) {
       setError(requestError.message);
+    }
+  }
+
+  async function deleteSession(session) {
+    if (!session || deletingSession) return;
+    setDeletingSession(true);
+    setError("");
+    try {
+      await chatRequest(`/sessions/${session.id}`, { method: "DELETE" });
+      setConfirmingSession(null);
+      // The removed chat may be the one on screen: clear it rather than leaving a
+      // thread that still claims to belong to a conversation that no longer exists.
+      if (activeSession?.id === session.id) {
+        setActiveSession(null);
+        setMessages([]);
+        setSelectedDocumentIds([]);
+      }
+      setSessions(await chatRequest("/sessions"));
+    } catch (requestError) {
+      setError(requestError.message);
+      setConfirmingSession(null);
+    } finally {
+      setDeletingSession(false);
     }
   }
 
@@ -242,15 +277,24 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
             <span>{sessions.length}</span>
           </div>
           {sessions.length ? sessions.map((session) => (
-            <button
-              className={`chat-session-item${activeSession?.id === session.id ? " is-active" : ""}`}
-              type="button"
-              key={session.id}
-              onClick={() => openSession(session)}
-            >
-              <strong>{formatSessionTitle(session, t)}</strong>
-              <span>{session.message_count || 0} {t("条消息")}</span>
-            </button>
+            <div className="chat-session-row" key={session.id}>
+              <button
+                className={`chat-session-item${activeSession?.id === session.id ? " is-active" : ""}`}
+                type="button"
+                onClick={() => openSession(session)}
+              >
+                <strong>{formatSessionTitle(session, t)}</strong>
+                <span>{session.message_count || 0} {t("条消息")}</span>
+              </button>
+              <button
+                className="chat-session-delete"
+                type="button"
+                onClick={() => setConfirmingSession(session)}
+                aria-label={t("删除对话：{title}", { title: formatSessionTitle(session, t) })}
+              >
+                {t("删除")}
+              </button>
+            </div>
           )) : <p className="chat-session-empty">{t("发送第一个问题后，对话会显示在这里。")}</p>}
         </aside>
 
@@ -407,6 +451,54 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
           </section>
         </div>
       )}
+      <dialog
+        ref={deleteDialog}
+        className="profile-dialog"
+        aria-labelledby="chat-delete-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          if (!deletingSession) setConfirmingSession(null);
+        }}
+        onClose={() => setConfirmingSession(null)}
+      >
+        <div className="profile-dialog-heading">
+          <div>
+            <p className="eyebrow">{t("删除对话")}</p>
+            <h2 id="chat-delete-title">{t("确定删除这段对话？")}</h2>
+          </div>
+          <button
+            className="dialog-close"
+            type="button"
+            aria-label={t("取消删除")}
+            onClick={() => setConfirmingSession(null)}
+            disabled={deletingSession}
+          >
+            ×
+          </button>
+        </div>
+        <p className="document-delete-copy">
+          {confirmingSession ? formatSessionTitle(confirmingSession, t) : ""}
+          {t("及其中的消息会被移除；由它生成的闪卡会保留，可以继续复习。")}
+        </p>
+        <div className="profile-actions">
+          <button
+            className="cancel-button"
+            type="button"
+            onClick={() => setConfirmingSession(null)}
+            disabled={deletingSession}
+          >
+            {t("保留对话")}
+          </button>
+          <button
+            className="danger-button"
+            type="button"
+            onClick={() => confirmingSession && deleteSession(confirmingSession)}
+            disabled={deletingSession}
+          >
+            {deletingSession ? t("正在删除…") : t("确认删除")}
+          </button>
+        </div>
+      </dialog>
     </main>
   );
 }

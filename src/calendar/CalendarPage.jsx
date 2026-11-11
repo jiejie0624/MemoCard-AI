@@ -179,11 +179,18 @@ export default function CalendarPage({ onStartReview }) {
             </div>
             {dayLoading ? <p className="calendar-status">{t("正在加载当天卡片…")}</p> : dayCards.length ? (
               <div className="calendar-card-list">
-                {dayCards.map((card) => (
-                  <article className="calendar-card-item" key={card.id}>
+                {dayCards.map((card, index) => (
+                  // Collapsed by default: opening a day should not reveal every question
+                  // before the student has had a chance to recall it.
+                  <details className="calendar-card-item" key={card.id}>
+                    <summary>
+                      <span className="calendar-card-index">{t("第 {count} 张", { count: index + 1 })}</span>
+                      {card.source_names?.length > 0 && (
+                        <span className="calendar-card-source">{card.source_names.join(" · ")}</span>
+                      )}
+                    </summary>
                     <h3>{card.question}</h3>
-                    {card.source_names?.length > 0 && <p>{card.source_names.join(" · ")}</p>}
-                  </article>
+                  </details>
                 ))}
               </div>
             ) : <p className="calendar-no-cards">{t("这一天没有安排复习。")}</p>}

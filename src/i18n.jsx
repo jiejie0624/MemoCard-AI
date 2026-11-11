@@ -27,7 +27,47 @@ Object.assign(en, {
   "闪卡列表": "Flashcard list", "已经注册": "Already registered", "学习问答": "AI chat", "新对话": "New chat", "对话": "Chats", "对话历史": "Chat history", "请输入你的姓名": "Enter your name", "学习资料入口已开放": "Your study space is ready", "今日学习": "TODAY'S STUDY", "个人空间": "Personal space", "今天的复习完成了": "You're done for today", "当前浏览器无法安全创建复习请求，请更新浏览器后重试。": "Can't securely create a review request. Update your browser and try again.", "文件超过 4 MiB 上限，请选择较小的文件。": "File exceeds the 4 MiB limit. Choose a smaller file.", "目前支持 PDF、UTF-8 TXT 和 PPTX。": "Supported formats are PDF, UTF-8 TXT, and PPTX.", "文件内容与 PDF 格式不匹配，请检查文件后重试。": "The file content doesn't match PDF format. Check the file and try again.", "文件不是有效的 PPTX 演示文稿。": "This is not a valid PPTX presentation.", "TXT 文件需要使用 UTF-8 编码。": "TXT files must use UTF-8 encoding.", "请检查文件是否为空或名称是否有效。": "Check that the file isn't empty and has a valid name.", "私有文件存储暂时不可用，请稍后重试。": "Private file storage is temporarily unavailable. Try again later.", "无法连接资料服务，请检查网络后重试。": "Can't connect to the materials service. Check your connection and try again.", "暂时无法连接复习服务，请检查网络后重试。": "Can't connect to the review service. Check your connection and try again.", "暂时无法连接日历服务，请检查网络后重试。": "Can't connect to the calendar service. Check your connection and try again.", "日历暂时无法加载，请稍后重试。": "Calendar couldn't load. Please try again later.", "复习结果暂时无法保存，请重试。": "Couldn't save your review. Please try again.", "邮箱或密码不正确，请检查后再试。": "Email or password is incorrect. Please try again.", "这个邮箱已经注册过了，请直接登录。": "This email is already registered. Please sign in.", "登录状态已失效，请重新登录。": "Your session expired. Please sign in again.", "登录状态已失效，请重新登录后再试。": "Your session expired. Please sign in again.", "认证服务暂时无法完成请求，请稍后再试。": "The authentication service couldn't complete your request. Try again later.", "认证": "Authentication"
 });
 
-Object.assign(en, { "正在整理你的对话…": "Loading your conversations…" });
+Object.assign(en, {
+  "正在整理你的对话…": "Loading your conversations…",
+  "删除对话": "Delete chat",
+  "确定删除这段对话？": "Delete this chat?",
+  "及其中的消息会被移除；由它生成的闪卡会保留，可以继续复习。": " and its messages will be removed. Flashcards created from it are kept and stay reviewable.",
+  "保留对话": "Keep chat",
+  "正在删除…": "Deleting…",
+  "删除对话：{title}": "Delete chat: {title}",
+  "先自己写下答案，再由 AI 判断是否答对；复习间隔会自动安排。": "Write your answer first; the AI marks it, and the next interval is scheduled automatically.",
+  "写下你的答案": "Write your answer",
+  "用一句话或几个要点回答": "Answer in a sentence or a few key points",
+  "不会，直接看答案": "Not sure — show the answer",
+  "正在检查…": "Checking…",
+  "提交答案": "Submit answer",
+  "✓ 答对了": "✓ Correct",
+  "✗ 还不对": "✗ Not quite",
+  "暂时无法自动判断，请看参考答案后自己选择。": "The answer could not be checked automatically. Read the reference answer and decide.",
+  "参考答案": "Reference answer",
+  "继续": "Continue",
+  "我答对了": "I got it right",
+  "我答错了": "I missed it",
+  "重试上次评分": "Retry the last rating",
+  "上次评分尚未确认保存，请用相同评分重试，避免重复记账。": "Your last rating has not been confirmed yet. Retry with the same rating to avoid double counting.",
+  "学习数据": "Learning data",
+  "MEMOCARD AI · 学习数据": "MEMOCARD AI · LEARNING DATA",
+  "查看正确率、卡片掌握程度和未来七天的复习负荷。": "See your accuracy, how well each card is known, and the next seven days of reviews.",
+  "学习概览": "Learning overview",
+  "次复习": "reviews",
+  "正确率": "Accuracy",
+  "天连续复习": "day streak",
+  "复习满 5 次后开始显示正确率。": "Accuracy appears after 5 reviews.",
+  "掌握程度": "How well you know your cards",
+  "新卡": "New",
+  "学习中": "Learning",
+  "已掌握": "Mastered",
+  "未来 7 天复习负荷": "Next 7 days",
+  "接下来 7 天没有安排复习。": "Nothing scheduled in the next 7 days.",
+  "正在汇总学习数据…": "Summarizing your learning data…",
+  "无法连接学习数据服务，请检查网络后重试。": "Can't connect to the learning data service. Check your connection and try again.",
+  "学习数据暂时无法加载。": "Learning data couldn't load.",
+});
 
 function interpolate(value, params) {
   return value.replace(/\{(\w+)\}/g, (_, name) => String(params?.[name] ?? `{${name}}`));

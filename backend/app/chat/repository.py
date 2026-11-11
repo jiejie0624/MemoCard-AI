@@ -89,6 +89,44 @@ class ChatRepository:
                 (session_id, user_id),
             ).fetchone()
 
+    def delete_session(self, user_id: UUID, session_id: UUID) -> bool:
+        """Remove a conversation and keep the flashcards it produced.
+
+        Messages, citations and the document scope cascade from chat_sessions, but a
+        flashcard may point at the assistant message it was generated from and that
+        foreign key is RESTRICT. The link is cleared inside the same transaction, so a
+        card the student already saved stays reviewable instead of blocking the delete.
+        """
+        with self._connect() as connection:
+            with connection.transaction():
+                session = connection.execute(
+                    """
+                    SELECT id FROM chat_sessions
+                    WHERE id = %s AND user_id = %s
+                    FOR UPDATE
+                    """,
+                    (session_id, user_id),
+                ).fetchone()
+                if session is None:
+                    return False
+
+                connection.execute(
+                    """
+                    UPDATE flashcards
+                    SET source_message_id = NULL
+                    WHERE user_id = %s AND source_message_id IN (
+                        SELECT id FROM chat_messages
+                        WHERE session_id = %s AND user_id = %s
+                    )
+                    """,
+                    (user_id, session_id, user_id),
+                )
+                connection.execute(
+                    "DELETE FROM chat_sessions WHERE id = %s AND user_id = %s",
+                    (session_id, user_id),
+                )
+                return True
+
     def get_session_document_ids(self, user_id: UUID, session_id: UUID) -> list[UUID]:
         with self._connect() as connection:
             return [
