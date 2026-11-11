@@ -2556,3 +2556,14 @@ a[role="button"]:active {
 @media (prefers-reduced-motion: reduce) {
   .workspace-main > * { animation: none; }
 }
+/* Ring glow: a soft halo reads as "lifted", not neon. */
+.analytics-ring circle:last-child { filter: drop-shadow(0 0 6px rgba(40, 120, 227, .45)); }
+
+/* Chat is a workspace, not a card inside the page: the conversation runs edge to edge
+   and only a hairline separates the list from the thread. */
+.chat-workspace { background: transparent; border: 0; box-shadow: none; border-radius: 0; }
+.chat-session-list { border-right: 1px solid var(--divider); }
+
+@media (prefers-reduced-motion: reduce) {
+  .analytics-ring circle:last-child { filter: none; }
+}
