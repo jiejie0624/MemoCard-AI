@@ -2572,3 +2572,6 @@ a[role="button"]:active {
 .analytics-spark svg { display: block; width: 100%; height: 120px; }
 .analytics-spark-labels { display: flex; justify-content: space-between; margin-top: 8px; color: var(--text-secondary); font-size: 12px; }
 .analytics-spark-labels .is-today { color: var(--accent); font-weight: 600; }
+/* Home stacks several blocks (onboarding, review, note); the gap between them is
+   structural, not a property of any one card. */
+.workspace-content > * + * { margin-top: 22px; }
