@@ -2615,3 +2615,18 @@ a[role="button"]:active {
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
+.composer-plus {
+  align-self: end;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, .8);
+  color: var(--accent);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.composer-plus:disabled { color: var(--text-tertiary); cursor: not-allowed; }
+.chat-composer { align-items: flex-end; }

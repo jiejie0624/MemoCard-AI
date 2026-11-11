@@ -316,11 +316,7 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
                   : t("搜索全部已就绪资料 · {count} 份", { count: readyDocuments.length })}
               </span>
             </div>
-            {!activeSession && (
-              <button className="text-button" type="button" onClick={() => setShowScope((value) => !value)}>
-                {showScope ? t("收起资料选择") : t("选择资料")}
-              </button>
-            )}
+
           </div>
 
           {showScope && !activeSession && (
@@ -351,11 +347,6 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
               <div className="chat-empty-state">
                 <span className="chat-empty-mark" aria-hidden="true">✦</span>
                 <h2>{readyDocuments.length ? t("你想从资料里了解什么？") : t("先准备一份学习资料")}</h2>
-                <p>
-                  {readyDocuments.length
-                    ? t("我会先查找相关内容，再根据找到的片段回答并标出来源。")
-                    : t("上传并处理 PDF、TXT 或 PPTX 后，就可以针对内容提问。")}
-                </p>
                 {!readyDocuments.length && (
                   <button className="secondary-button" type="button" onClick={onOpenDocuments}>
                     {t("前往学习资料")}
@@ -386,6 +377,17 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
 
           {error && <p className="chat-error" role="alert">{t(error)}</p>}
           <form className="chat-composer" onSubmit={submitQuestion}>
+            {/* Materials are chosen from the composer, where the question is written. */}
+            <button
+              className="composer-plus"
+              type="button"
+              onClick={() => setShowScope((value) => !value)}
+              aria-expanded={showScope}
+              aria-label={t("选择资料")}
+              disabled={!readyDocuments.length}
+            >
+              ＋
+            </button>
             <textarea
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
