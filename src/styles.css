@@ -2707,3 +2707,28 @@ html[lang="en"] .analytics-heading h1 {
    block compact is what makes the page read as calm as the Chinese one. */
 html[lang="en"] .auth-story h1 { font-size: clamp(34px, 4vw, 46px); }
 html[lang="en"] .auth-story p { max-width: 34ch; }
+/* The transcript sits on its own surface so it separates from the page background,
+   and the composer sticks to the bottom of the viewport while the page scrolls. */
+.chat-thread {
+  background: rgba(255, 255, 255, .82);
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 18px 48px rgba(62, 103, 164, .1);
+  padding: 22px clamp(16px, 2.4vw, 28px);
+  overflow: visible;
+}
+
+.chat-page, .chat-workspace { overflow: visible; }
+
+.chat-composer {
+  position: sticky;
+  bottom: 0;
+  margin-top: 18px;
+  padding: 10px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, .97);
+  box-shadow: 0 -6px 24px rgba(62, 103, 164, .08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
