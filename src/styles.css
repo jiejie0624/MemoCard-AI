@@ -2674,3 +2674,32 @@ a[role="button"]:active {
   -webkit-backdrop-filter: blur(16px);
 }
 .chat-composer textarea { border: 0; background: transparent; box-shadow: none; }
+/* --- Typography, English vs Chinese ---------------------------------------
+   Chinese glyphs form an even block on their own; Latin does not, so the English
+   locale needs a slightly looser tracking and balanced line breaks, and labels need
+   equal-width segments instead of content-sized ones. */
+
+.auth-story h1,
+.auth-panel h2,
+.dashboard-heading h1,
+.chat-page-heading h1,
+.flashcards-heading h1,
+.review-page-heading h1,
+.calendar-heading h1,
+.analytics-heading h1 { text-wrap: balance; }
+
+html[lang="en"] .auth-story h1 { letter-spacing: -.015em; line-height: 1.3; }
+
+html[lang="en"] .auth-panel h2,
+html[lang="en"] .dashboard-heading h1,
+html[lang="en"] .chat-page-heading h1,
+html[lang="en"] .flashcards-heading h1,
+html[lang="en"] .review-page-heading h1,
+html[lang="en"] .calendar-heading h1,
+html[lang="en"] .analytics-heading h1 {
+  letter-spacing: -.01em;
+  line-height: 1.3;
+}
+
+/* "Sign in" and "Sign up" must not size themselves to their text. */
+.auth-tabs .auth-tab { flex: 1; }
