@@ -291,6 +291,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
   const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
   const [documentCount, setDocumentCount] = useState(null);
   const [flashcardCount, setFlashcardCount] = useState(null);
+  const [reviewDate, setReviewDate] = useState(null);
   const displayName = user.display_name || user.email;
   const initials = displayName.trim().slice(0, 1).toUpperCase();
 
@@ -428,7 +429,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               className={`nav-item${activeSection === "review" ? " is-current" : ""}`}
               type="button"
               aria-current={activeSection === "review" ? "page" : undefined}
-              onClick={() => setActiveSection("review")}
+              onClick={() => { setReviewDate(null); setActiveSection("review"); }}
             >
               <span className="nav-indicator" aria-hidden="true" />
               {t("今日复习")}
@@ -484,9 +485,9 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
         ) : activeSection === "flashcards" ? (
           <FlashcardsPage />
         ) : activeSection === "review" ? (
-          <ReviewPage />
+          <ReviewPage date={reviewDate} />
         ) : activeSection === "calendar" ? (
-          <CalendarPage onStartReview={() => setActiveSection("review")} />
+          <CalendarPage onStartReview={(date) => { setReviewDate(date); setActiveSection("review"); }} />
         ) : activeSection === "analytics" ? (
           <AnalyticsPage />
         ) : (

@@ -51,7 +51,7 @@ function formatDate(value, locale) {
   return new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(new Date(value));
 }
 
-export default function ReviewPage() {
+export default function ReviewPage({ date = null }) {
   const { t, locale } = useLanguage();
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,10 +71,17 @@ export default function ReviewPage() {
   const [practice, setPractice] = useState(null);
   const [practiceRevealed, setPracticeRevealed] = useState(false);
 
-  const dueCards = useMemo(
-    () => cards.filter((card) => new Date(card.next_review_at).getTime() <= Date.now()),
-    [cards],
-  );
+  const dueCards = useMemo(() => {
+    const due = cards.filter((card) => new Date(card.next_review_at).getTime() <= Date.now());
+    if (!date) return due;
+    // Opened from a calendar day: only that day's cards, so the date the student picked
+    // and the cards they see agree.
+    return due.filter((card) => {
+      const value = new Date(card.next_review_at);
+      const key = `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+      return key === date;
+    });
+  }, [cards, date]);
   const currentCard = dueCards[0] || null;
   // "Review today" also carries what is overdue — that is how spaced repetition keeps a
   // missed day from erasing the card. The page has to say so, or the extra cards look

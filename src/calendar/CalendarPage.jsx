@@ -190,7 +190,7 @@ export default function CalendarPage({ onStartReview }) {
             <div className="calendar-day-heading">
               <div><p className="eyebrow">{t("所选日期")}</p><h2>{selectedDate}</h2></div>
               {selectedDate <= summary.today && dayCards.length > 0 && (
-                <button className="primary-button" type="button" onClick={onStartReview}>{t("开始复习")}</button>
+                <button className="primary-button" type="button" onClick={() => onStartReview(selectedDate)}>{t("开始复习")}</button>
               )}
             </div>
             {dayLoading ? <p className="calendar-status">{t("正在加载当天卡片…")}</p> : dayCards.length ? (
