@@ -2542,3 +2542,17 @@ a[role="button"]:active {
 .flashcards-group-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .flashcards-group-count { margin-left: auto; color: var(--text-secondary); font-size: 11px; font-weight: 500; }.review-due { color: var(--text-secondary); }
 .review-due.is-late { color: #b94742; font-weight: 600; }.flashcards-group-delete { margin-left: 10px; font-size: 11px; }
+
+/* Every page fades in and lifts a few pixels on mount, so switching sections reads as
+   one continuous surface rather than a hard cut. Kept short so the page is usable
+   immediately, and disabled entirely for reduced motion. */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.workspace-main > * { animation: page-enter 180ms cubic-bezier(.2, .75, .25, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-main > * { animation: none; }
+}
