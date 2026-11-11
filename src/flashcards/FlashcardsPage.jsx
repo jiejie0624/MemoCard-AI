@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiUrl } from "../api.js";
 import { useLanguage } from "../i18n.jsx";
 
@@ -85,6 +85,21 @@ export default function FlashcardsPage() {
 
   const dueCount = cards.filter((card) => new Date(card.next_review_at) <= new Date()).length;
 
+  // One collapsible group per source document, matching the review calendar: deleting is
+  // easier when every card from the same file sits together.
+  const cardGroups = useMemo(() => {
+    const groups = new Map();
+    for (const card of cards) {
+      const source = card.sources?.[0];
+      const key = source?.document_id ?? "unsourced";
+      if (!groups.has(key)) {
+        groups.set(key, { key, name: source?.document_name ?? t("无来源的卡片"), cards: [] });
+      }
+      groups.get(key).cards.push(card);
+    }
+    return [...groups.values()];
+  }, [cards, t]);
+
   return (
     <main className="flashcards-page">
       <header className="flashcards-heading">
@@ -108,7 +123,13 @@ export default function FlashcardsPage() {
         </section>
       ) : (
         <section className="flashcards-list" aria-label={t("闪卡列表")}>
-          {cards.map((card) => (
+          {cardGroups.map((group) => (
+            <details className="flashcards-group" key={group.key}>
+              <summary>
+                <span className="flashcards-group-name">{group.name}</span>
+                <span className="flashcards-group-count">{t("{count} 张", { count: group.cards.length })}</span>
+              </summary>
+              {group.cards.map((card) => (
             <article className="flashcard-row" key={card.id}>
               {editingId === card.id ? (
                 <form className="flashcard-edit-form" onSubmit={saveEdit}>
@@ -160,6 +181,8 @@ export default function FlashcardsPage() {
                 </>
               )}
             </article>
+              ))}
+            </details>
           ))}
         </section>
       )}

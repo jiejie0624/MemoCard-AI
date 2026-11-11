@@ -66,7 +66,21 @@ class FlashcardRepository:
                     raise LookupError("Source answer is unavailable")
 
                 created_ids = []
+                # Saving the same draft twice used to insert a second copy of every card,
+                # which then had to be deleted twice. A card is considered a duplicate when
+                # the same user already has one with the same normalised question.
+                existing_questions = {
+                    " ".join(row["question"].split()).casefold()
+                    for row in connection.execute(
+                        "SELECT question FROM flashcards WHERE user_id = %s",
+                        (user_id,),
+                    ).fetchall()
+                }
                 for card in cards:
+                    question_key = " ".join(card["question"].split()).casefold()
+                    if question_key in existing_questions:
+                        continue
+                    existing_questions.add(question_key)
                     source_rows = [citation_by_rank[rank] for rank in card["source_refs"]]
                     card_id = uuid4()
                     connection.execute(
