@@ -2575,3 +2575,8 @@ a[role="button"]:active {
 /* Home stacks several blocks (onboarding, review, note); the gap between them is
    structural, not a property of any one card. */
 .workspace-content > * + * { margin-top: 22px; }
+/* After the workspace card was removed, the session list still painted its own white
+   panel, which left a floating rectangle against the transparent thread. Both columns
+   now sit on the page surface and are separated by one hairline. */
+.chat-workspace { background: transparent; border: 0; box-shadow: none; border-radius: 0; }
+.chat-session-list { background: transparent; box-shadow: none; border-radius: 0; border-right: 1px solid var(--divider); }
