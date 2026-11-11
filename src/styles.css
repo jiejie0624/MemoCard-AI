@@ -2567,3 +2567,8 @@ a[role="button"]:active {
 @media (prefers-reduced-motion: reduce) {
   .analytics-ring circle:last-child { filter: none; }
 }
+/* Seven-day sparkline: one stroke and a fading fill describe the week's load better
+   than seven separate columns did. */
+.analytics-spark svg { display: block; width: 100%; height: 120px; }
+.analytics-spark-labels { display: flex; justify-content: space-between; margin-top: 8px; color: var(--text-secondary); font-size: 12px; }
+.analytics-spark-labels .is-today { color: var(--accent); font-weight: 600; }

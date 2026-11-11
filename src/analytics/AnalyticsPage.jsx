@@ -88,6 +88,16 @@ export default function AnalyticsPage() {
   const upcomingMax = Math.max(1, ...(summary?.upcoming ?? []).map((day) => day.count));
   const today = summary ? todayInZone(summary.timezone) : "";
   const streakDots = Math.min(summary?.streak_days ?? 0, 7);
+  // Seven points is too few for a bar chart and just right for a sparkline: the shape
+  // answers "how heavy is the week" faster than seven separate columns.
+  const upcoming = summary?.upcoming ?? [];
+  const sparkPoints = upcoming.map((day, index) => ({
+    ...day,
+    x: upcoming.length > 1 ? (index / (upcoming.length - 1)) * 100 : 50,
+    y: 34 - (day.count / upcomingMax) * 28,
+  }));
+  const sparkLine = sparkPoints.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" ");
+  const sparkArea = `0,40 ${sparkLine} 100,40`;
 
   return (
     <main className="analytics-page">
@@ -181,19 +191,32 @@ export default function AnalyticsPage() {
               <h2 id="analytics-load-title">{t("未来 7 天复习负荷")}</h2>
             </div>
             {summary.upcoming.length ? (
-              <div className="analytics-columns">
-                {summary.upcoming.map((day) => (
-                  <div className={`analytics-column${day.date === today ? " is-today" : ""}`} key={day.date}>
-                    <span className="analytics-column-value">{day.count}</span>
-                    <span className="analytics-column-track" aria-hidden="true">
-                      <span
-                        className="analytics-column-bar"
-                        style={{ height: `${Math.max(6, Math.round((day.count / upcomingMax) * 100))}%` }}
-                      />
+              <div className="analytics-spark">
+                <svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#2878e3" stopOpacity=".5" />
+                      <stop offset="100%" stopColor="#2878e3" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <polygon points={sparkArea} fill="url(#spark-fill)" />
+                  <polyline
+                    points={sparkLine}
+                    fill="none"
+                    stroke="#2878e3"
+                    strokeWidth="1.4"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
+                <div className="analytics-spark-labels">
+                  {sparkPoints.map((point) => (
+                    <span key={point.date} className={point.date === today ? "is-today" : ""}>
+                      {formatDay(point.date, locale)}
                     </span>
-                    <span className="analytics-column-label">{formatDay(day.date, locale)}</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             ) : (
               <p className="analytics-empty">{t("接下来 7 天没有安排复习。")}</p>
