@@ -83,6 +83,27 @@ export default function FlashcardsPage() {
     }
   }
 
+  async function deleteGroup(group) {
+    if (!group.cards.length) return;
+    const label = t("删除「{name}」的 {count} 张卡片？", { name: group.name, count: group.cards.length });
+    if (!window.confirm(label)) return;
+    setBusyId("group");
+    setError("");
+    try {
+      // Deleted one by one because the API removes a single card; all of them belong to
+      // the same document, so the group disappears as soon as the loop finishes.
+      for (const card of group.cards) {
+        await requestCards(`/${card.id}`, { method: "DELETE" });
+      }
+      setCards((current) => current.filter((card) => !group.cards.some((item) => item.id === card.id)));
+    } catch (requestError) {
+      setError(requestError.message);
+      await loadCards();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const dueCount = cards.filter((card) => new Date(card.next_review_at) <= new Date()).length;
 
   // One collapsible group per source document, matching the review calendar: deleting is
@@ -128,6 +149,14 @@ export default function FlashcardsPage() {
               <summary>
                 <span className="flashcards-group-name">{group.name}</span>
                 <span className="flashcards-group-count">{t("{count} 张", { count: group.cards.length })}</span>
+                <button
+                  className="text-button is-danger flashcards-group-delete"
+                  type="button"
+                  disabled={busyId === "group"}
+                  onClick={(event) => { event.preventDefault(); event.stopPropagation(); deleteGroup(group); }}
+                >
+                  {t("删除整组")}
+                </button>
               </summary>
               {group.cards.map((card) => (
             <article className="flashcard-row" key={card.id}>

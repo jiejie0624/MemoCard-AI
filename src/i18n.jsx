@@ -63,6 +63,8 @@ Object.assign(en, {
   "今天到期": "due today",
   "逾期 {days} 天": "{days} days overdue",
   "{count} 张": "{count} cards",
+  "删除整组": "Delete group",
+  "删除「{name}」的 {count} 张卡片？": "Delete all {count} cards from 「{name}」?",
   "掌握程度": "How well you know your cards",
   "新卡": "New",
   "学习中": "Learning",
