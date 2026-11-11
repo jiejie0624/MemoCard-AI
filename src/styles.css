@@ -2954,3 +2954,9 @@ html[lang="en"] .auth-story p { max-width: 34ch; }
   box-shadow: none;
   opacity: 1;
 }
+/* Heading and transcript share one content column; the card was still full width,
+   which is why its left edge sat further out than the title. */
+.chat-thread {
+  width: min(var(--chat-content-width, 760px), 100%);
+  margin-inline: auto;
+}
