@@ -76,6 +76,13 @@ export default function ReviewPage() {
     [cards],
   );
   const currentCard = dueCards[0] || null;
+  // "Review today" also carries what is overdue — that is how spaced repetition keeps a
+  // missed day from erasing the card. The page has to say so, or the extra cards look
+  // like a bug, so the queue is split and each card is labelled with why it is here.
+  const dayStart = useMemo(() => { const start = new Date(); start.setHours(0, 0, 0, 0); return start; }, []);
+  const overdueCards = dueCards.filter((card) => new Date(card.next_review_at) < dayStart);
+  const todayCards = dueCards.filter((card) => new Date(card.next_review_at) >= dayStart);
+  const daysLate = (card) => Math.max(1, Math.ceil((dayStart - new Date(card.next_review_at)) / 86400000));
 
   const loadCards = useCallback(async () => {
     setLoading(true);
@@ -238,9 +245,14 @@ export default function ReviewPage() {
           <h1>{t("今日复习")}</h1>
           <p>{t("先自己写下答案，再由 AI 判断是否答对；复习间隔会自动安排。")}</p>
         </div>
-        {!loading && !error && sessionTotal > 0 && (
+        {!loading && !error && dueCards.length > 0 && (
           <div className="review-progress" aria-live="polite">
-            <strong>{sessionTotal - dueCards.length + (currentCard ? 1 : 0)}</strong> / {sessionTotal} {t("张")}
+            {overdueCards.length > 0 && (
+              <>
+                <strong>{overdueCards.length}</strong> {t("逾期")} <span aria-hidden="true">·</span>{" "}
+              </>
+            )}
+            <strong>{todayCards.length}</strong> {t("今天到期")}
           </div>
         )}
       </header>
@@ -264,6 +276,11 @@ export default function ReviewPage() {
         <section className="review-session" aria-labelledby="review-question-title">
           <div className="review-session-meta">
             <span>{t("第 {count} 张", { count: sessionTotal - dueCards.length + 1 })}</span>
+            <span className={`review-due${new Date(currentCard.next_review_at) < dayStart ? " is-late" : ""}`}>
+              {new Date(currentCard.next_review_at) < dayStart
+                ? t("逾期 {days} 天", { days: daysLate(currentCard) })
+                : t("今天到期")}
+            </span>
             {currentCard.sources?.[0]?.document_name && <span>{currentCard.sources[0].document_name}</span>}
           </div>
 
