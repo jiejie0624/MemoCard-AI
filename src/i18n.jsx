@@ -62,6 +62,7 @@ Object.assign(en, {
   "逾期": "overdue",
   "今天到期": "due today",
   "逾期 {days} 天": "{days} days overdue",
+  "{count} 张": "{count} cards",
   "掌握程度": "How well you know your cards",
   "新卡": "New",
   "学习中": "Learning",
