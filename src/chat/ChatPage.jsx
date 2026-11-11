@@ -1,28 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiUrl } from "../api.js";
 import { useLanguage } from "../i18n.jsx";
-
-const API = "/api/chat";
-
-async function chatRequest(path, options = {}) {
-  const response = await fetch(apiUrl(`${API}${path}`), {
-    method: options.method || "GET",
-    credentials: "include",
-    headers: options.body ? { "Content-Type": "application/json" } : undefined,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-    signal: AbortSignal.timeout(60000),
-  });
-  let payload = null;
-  try {
-    payload = await response.json();
-  } catch {
-    // Show a short fallback if a proxy returns a non-JSON error.
-  }
-  if (!response.ok) {
-    throw new Error(typeof payload?.detail === "string" ? payload.detail : "暂时无法完成请求，请稍后重试。");
-  }
-  return payload;
-}
+import { chatRequest, formatSessionTitle } from "./chatApi.js";
 
 async function flashcardRequest(path, options = {}) {
   const response = await fetch(apiUrl(`/api/flashcards${path}`), {
@@ -35,10 +14,6 @@ async function flashcardRequest(path, options = {}) {
   const payload = await response.json().catch(() => null);
   if (!response.ok) throw new Error(typeof payload?.detail === "string" ? payload.detail : "闪卡操作失败，请稍后重试。");
   return payload;
-}
-
-function formatSessionTitle(session, t) {
-  return session.title || t("新对话");
 }
 
 function CitationList({ citations }) {
@@ -62,15 +37,21 @@ function CitationList({ citations }) {
   );
 }
 
-export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
+export default function ChatPage({
+  activeSession,
+  onSessionCreated,
+  onRefreshSessions,
+  onNewSession,
+  onOpenDocuments,
+  onOpenFlashcards,
+}) {
   const { t } = useLanguage();
   const [documents, setDocuments] = useState([]);
-  const [sessions, setSessions] = useState([]);
-  const [activeSession, setActiveSession] = useState(null);
   const [messages, setMessages] = useState([]);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState([]);
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [showScope, setShowScope] = useState(false);
@@ -79,36 +60,23 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftError, setDraftError] = useState("");
-  const [showHistory, setShowHistory] = useState(false);
-  const [confirmingSession, setConfirmingSession] = useState(null);
-  const [deletingSession, setDeletingSession] = useState(false);
   const bottomRef = useRef(null);
-  const deleteDialog = useRef(null);
+  // Tracks which conversation the transcript belongs to. It lets a turn that is still
+  // being saved avoid clobbering a thread the user just switched to.
+  const loadedSessionId = useRef(null);
 
   const readyDocuments = documents.filter((document) => document.status === "ready");
 
-  const loadWorkspace = useCallback(async () => {
+  const loadDocuments = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [nextDocuments, nextSessions] = await Promise.all([
-        fetch(apiUrl("/api/documents"), { credentials: "include", signal: AbortSignal.timeout(15000) }).then(async (response) => {
-          if (!response.ok) throw new Error("无法加载学习资料。");
-          return response.json();
-        }),
-        chatRequest("/sessions"),
-      ]);
-      setDocuments(nextDocuments);
-      setSessions(nextSessions);
-      if (nextSessions.length) {
-        const first = nextSessions[0];
-        setActiveSession(first);
-        setSelectedDocumentIds(first.selected_document_ids || []);
-        setMessages(await chatRequest(`/sessions/${first.id}/messages`));
-      } else {
-        setActiveSession(null);
-        setMessages([]);
-      }
+      const response = await fetch(apiUrl("/api/documents"), {
+        credentials: "include",
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) throw new Error("无法加载学习资料。");
+      setDocuments(await response.json());
     } catch (requestError) {
       setError(requestError.message || "无法连接问答服务。");
     } finally {
@@ -117,63 +85,54 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
   }, []);
 
   useEffect(() => {
-    loadWorkspace();
-  }, [loadWorkspace]);
+    loadDocuments();
+  }, [loadDocuments]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, sending]);
 
-  // The native dialog owns focus and Esc; state only decides whether it is open, so a
-  // cancelled deletion restores the trigger instead of leaving the page in a stale state.
+  // The selected conversation is owned by the app shell. Load its messages here and
+  // clear the draft state when the shell starts a new chat.
   useEffect(() => {
-    const dialog = deleteDialog.current;
-    if (!dialog) return;
-    if (confirmingSession && !dialog.open) dialog.showModal();
-    if (!confirmingSession && dialog.open) dialog.close();
-  }, [confirmingSession]);
+    const sessionId = activeSession?.id ?? null;
+    if (sessionId === loadedSessionId.current) return undefined;
+    loadedSessionId.current = sessionId;
+
+    if (!sessionId) {
+      setMessages([]);
+      setSelectedDocumentIds([]);
+      setMessagesLoading(false);
+      setQuestion("");
+      setError("");
+      setShowScope(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setMessagesLoading(true);
+    setError("");
+    setSelectedDocumentIds(activeSession.selected_document_ids || []);
+    chatRequest(`/sessions/${sessionId}/messages`)
+      .then((nextMessages) => {
+        if (!cancelled) setMessages(nextMessages);
+      })
+      .catch((requestError) => {
+        if (!cancelled) setError(requestError.message);
+      })
+      .finally(() => {
+        if (!cancelled) setMessagesLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeSession]);
 
   function startNewSession() {
-    setActiveSession(null);
     setMessages([]);
     setSelectedDocumentIds([]);
     setQuestion("");
     setError("");
     setShowScope(false);
-  }
-
-  async function openSession(session) {
-    setActiveSession(session);
-    setSelectedDocumentIds(session.selected_document_ids || []);
-    setError("");
-    try {
-      setMessages(await chatRequest(`/sessions/${session.id}/messages`));
-    } catch (requestError) {
-      setError(requestError.message);
-    }
-  }
-
-  async function deleteSession(session) {
-    if (!session || deletingSession) return;
-    setDeletingSession(true);
-    setError("");
-    try {
-      await chatRequest(`/sessions/${session.id}`, { method: "DELETE" });
-      setConfirmingSession(null);
-      // The removed chat may be the one on screen: clear it rather than leaving a
-      // thread that still claims to belong to a conversation that no longer exists.
-      if (activeSession?.id === session.id) {
-        setActiveSession(null);
-        setMessages([]);
-        setSelectedDocumentIds([]);
-      }
-      setSessions(await chatRequest("/sessions"));
-    } catch (requestError) {
-      setError(requestError.message);
-      setConfirmingSession(null);
-    } finally {
-      setDeletingSession(false);
-    }
+    onNewSession();
   }
 
   function toggleDocument(documentId) {
@@ -195,15 +154,23 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
           method: "POST",
           body: selectedDocumentIds.length ? { selected_document_ids: selectedDocumentIds } : {},
         });
-        setActiveSession(session);
+        // The first turn is saved below into this session; mark it loaded so the
+        // message effect does not fetch an empty thread over the answer.
+        loadedSessionId.current = session.id;
+        onSessionCreated(session);
       }
       const updatedMessages = await chatRequest(`/sessions/${session.id}/messages`, {
         method: "POST",
         body: { question: text },
       });
-      setMessages(updatedMessages);
-      setQuestion("");
-      setSessions(await chatRequest("/sessions"));
+      // A turn can finish after the user opens another chat. Only update the transcript
+      // when the selected conversation is still the one that produced it.
+      if (loadedSessionId.current === session.id) {
+        setMessages(updatedMessages);
+        setQuestion("");
+      }
+      // Refresh the nav's title and message count without blocking the answer.
+      onRefreshSessions().catch(() => {});
     } catch (requestError) {
       setError(requestError.message || "AI 暂时无法回答，请重试。");
     } finally {
@@ -267,9 +234,6 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
           <p>{t("结合已处理的课程资料回答，并附上可核对的来源。")}</p>
         </div>
         <div className="chat-heading-actions">
-          <button className="text-button" type="button" onClick={() => setShowHistory((value) => !value)} aria-expanded={showHistory}>
-            {showHistory ? t("收起对话历史") : t("对话历史 · {count}", { count: sessions.length })}
-          </button>
           <button className="primary-button chat-new-button" type="button" onClick={startNewSession}>
             {t("新建对话")}
           </button>
@@ -277,35 +241,6 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
       </header>
 
       <section className="chat-workspace" aria-label={t("AI 问答工作区")}>
-        {showHistory && (
-        <aside className="chat-session-list" aria-label={t("对话历史")}>
-          <div className="chat-session-list-heading">
-            <h2>{t("对话")}</h2>
-            <span>{sessions.length}</span>
-          </div>
-          {sessions.length ? sessions.map((session) => (
-            <div className="chat-session-row" key={session.id}>
-              <button
-                className={`chat-session-item${activeSession?.id === session.id ? " is-active" : ""}`}
-                type="button"
-                onClick={() => openSession(session)}
-              >
-                <strong>{formatSessionTitle(session, t)}</strong>
-                <span>{session.message_count || 0} {t("条消息")}</span>
-              </button>
-              <button
-                className="chat-session-delete"
-                type="button"
-                onClick={() => setConfirmingSession(session)}
-                aria-label={t("删除对话：{title}", { title: formatSessionTitle(session, t) })}
-              >
-                {t("删除")}
-              </button>
-            </div>
-          )) : <p className="chat-session-empty">{t("发送第一个问题后，对话会显示在这里。")}</p>}
-        </aside>
-        )}
-
         <div className="chat-thread">
           <div className="chat-thread-topline">
             <div>
@@ -343,7 +278,10 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
           )}
 
           <div className="chat-message-list" aria-live="polite">
-            {!messages.length && (
+            {messagesLoading && (
+              <p className="chat-loading" role="status">{t("正在整理你的对话…")}</p>
+            )}
+            {!messagesLoading && !messages.length && (
               <div className="chat-empty-state">
                 <span className="chat-empty-mark" aria-hidden="true">✦</span>
                 <h2>{readyDocuments.length ? t("你想从资料里了解什么？") : t("先准备一份学习资料")}</h2>
@@ -461,54 +399,6 @@ export default function ChatPage({ onOpenDocuments, onOpenFlashcards }) {
           </section>
         </div>
       )}
-      <dialog
-        ref={deleteDialog}
-        className="profile-dialog"
-        aria-labelledby="chat-delete-title"
-        onCancel={(event) => {
-          event.preventDefault();
-          if (!deletingSession) setConfirmingSession(null);
-        }}
-        onClose={() => setConfirmingSession(null)}
-      >
-        <div className="profile-dialog-heading">
-          <div>
-            <p className="eyebrow">{t("删除对话")}</p>
-            <h2 id="chat-delete-title">{t("确定删除这段对话？")}</h2>
-          </div>
-          <button
-            className="dialog-close"
-            type="button"
-            aria-label={t("取消删除")}
-            onClick={() => setConfirmingSession(null)}
-            disabled={deletingSession}
-          >
-            ×
-          </button>
-        </div>
-        <p className="document-delete-copy">
-          {confirmingSession ? formatSessionTitle(confirmingSession, t) : ""}
-          {t("及其中的消息会被移除；由它生成的闪卡会保留，可以继续复习。")}
-        </p>
-        <div className="profile-actions">
-          <button
-            className="cancel-button"
-            type="button"
-            onClick={() => setConfirmingSession(null)}
-            disabled={deletingSession}
-          >
-            {t("保留对话")}
-          </button>
-          <button
-            className="danger-button"
-            type="button"
-            onClick={() => confirmingSession && deleteSession(confirmingSession)}
-            disabled={deletingSession}
-          >
-            {deletingSession ? t("正在删除…") : t("确认删除")}
-          </button>
-        </div>
-      </dialog>
     </main>
   );
 }

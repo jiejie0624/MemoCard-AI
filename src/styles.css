@@ -2732,3 +2732,149 @@ html[lang="en"] .auth-story p { max-width: 34ch; }
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
+
+/* --- Chat history in the sidebar -----------------------------------------
+   The session list is part of the navigation now: it expands under "AI chat"
+   and the thread keeps the full page width. */
+.nav-group {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.nav-chevron {
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 150ms ease;
+}
+
+.nav-group.is-open .nav-chevron { transform: rotate(45deg); }
+
+.nav-chat-sessions {
+  display: grid;
+  gap: 2px;
+  max-height: min(42vh, 320px);
+  overflow-y: auto;
+  margin-left: 12px;
+  padding: 2px 4px 6px 10px;
+  border-left: 1px solid var(--divider);
+}
+
+.nav-chat-session {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.nav-chat-item {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.nav-chat-item:hover,
+.nav-chat-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.nav-chat-item strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-chat-item span {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.nav-chat-item.is-active span {
+  color: inherit;
+  opacity: .78;
+}
+
+.nav-chat-delete {
+  flex: 0 0 auto;
+  width: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.nav-chat-session:hover .nav-chat-delete,
+.nav-chat-session:focus-within .nav-chat-delete,
+.nav-chat-delete:focus-visible { opacity: 1; }
+
+.nav-chat-delete:hover {
+  background: #fdecea;
+  color: var(--danger);
+}
+
+.nav-chat-delete:focus-visible,
+.nav-chat-item:focus-visible,
+.nav-chat-retry:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.nav-chat-status {
+  margin: 4px 8px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.nav-chat-error {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.nav-chat-retry {
+  padding: 3px 8px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+@media (hover: none) {
+  .nav-chat-delete { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-chevron { transition: none; }
+}
+
+/* On narrow screens the sidebar becomes a top bar. The open chat group takes
+   its own row so the session list is not squeezed into the horizontal strip. */
+@media (max-width: 900px) {
+  .primary-nav { flex-wrap: wrap; }
+  .nav-group.is-open { flex-basis: 100%; }
+  .nav-group.is-open > .nav-item { width: 100%; }
+  .nav-chat-sessions { max-height: 220px; }
+}

@@ -129,6 +129,13 @@ Object.assign(en, {
   "退出": "Sign out",
 });
 
+Object.assign(en, {
+  "正在加载对话…": "Loading chats…",
+  "暂时无法加载对话列表。": "Couldn't load your chats.",
+  "删除对话失败，请稍后重试。": "Couldn't delete the chat. Please try again.",
+  "无法连接问答服务，请检查网络后重试。": "Can't connect to the AI chat service. Check your connection and try again.",
+});
+
 function interpolate(value, params) {
   return value.replace(/\{(\w+)\}/g, (_, name) => String(params?.[name] ?? `{${name}}`));
 }

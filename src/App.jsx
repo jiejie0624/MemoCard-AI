@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiUrl } from "./api.js";
 import AnalyticsPage from "./analytics/AnalyticsPage.jsx";
 import ChatPage from "./chat/ChatPage.jsx";
+import { chatRequest, formatSessionTitle } from "./chat/chatApi.js";
 import CalendarPage from "./calendar/CalendarPage.jsx";
 import DocumentsPage from "./documents/DocumentsPage.jsx";
 import FlashcardsPage from "./flashcards/FlashcardsPage.jsx";
@@ -292,6 +293,20 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
   const [documentCount, setDocumentCount] = useState(null);
   const [flashcardCount, setFlashcardCount] = useState(null);
   const [reviewDate, setReviewDate] = useState(null);
+  // Chat history belongs to the app shell now: the sidebar renders the list and the
+  // chat page only renders the selected thread.
+  const [sessions, setSessions] = useState([]);
+  const [activeSession, setActiveSession] = useState(null);
+  const [chatNavOpen, setChatNavOpen] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState("");
+  const [sessionsReloadKey, setSessionsReloadKey] = useState(0);
+  const [sessionToDelete, setSessionToDelete] = useState(null);
+  const [deletingSession, setDeletingSession] = useState(false);
+  const [deleteSessionError, setDeleteSessionError] = useState("");
+  const sessionsLoaded = useRef(false);
+  const sessionChosen = useRef(false);
+  const deleteSessionDialog = useRef(null);
   const displayName = user.display_name || user.email;
   const initials = displayName.trim().slice(0, 1).toUpperCase();
 
@@ -331,6 +346,101 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
     if (editingProfile && !dialog.open) dialog.showModal();
     if (!editingProfile && dialog.open) dialog.close();
   }, [editingProfile]);
+
+  // Load the history the first time the chat section opens. A null active session is a
+  // deliberate "new chat" draft, so only the first conversation is auto-selected.
+  useEffect(() => {
+    if (activeSection !== "chat" || sessionsLoaded.current) return undefined;
+    let cancelled = false;
+    setSessionsLoading(true);
+    setSessionsError("");
+    chatRequest("/sessions")
+      .then((nextSessions) => {
+        if (cancelled) return;
+        // If a new chat was created while this first request was in flight, keep the
+        // optimistic list instead of replacing it with the older snapshot.
+        setSessions((current) => (sessionChosen.current && current.length ? current : nextSessions));
+        setActiveSession((current) => (sessionChosen.current ? current : current ?? nextSessions[0] ?? null));
+        sessionsLoaded.current = true;
+      })
+      .catch((requestError) => {
+        if (!cancelled) setSessionsError(requestError.message || "暂时无法加载对话列表。");
+      })
+      .finally(() => {
+        if (!cancelled) setSessionsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeSection, sessionsReloadKey]);
+
+  useEffect(() => {
+    const dialog = deleteSessionDialog.current;
+    if (!dialog) return;
+    if (sessionToDelete && !dialog.open) dialog.showModal();
+    if (!sessionToDelete && dialog.open) dialog.close();
+  }, [sessionToDelete]);
+
+  // Called after a turn is saved: the nav needs the updated title and message count,
+  // and the selected session should reflect the refreshed object.
+  const refreshSessions = useCallback(async () => {
+    const nextSessions = await chatRequest("/sessions");
+    setSessions(nextSessions);
+    setActiveSession((current) => (current
+      ? nextSessions.find((session) => session.id === current.id) ?? current
+      : current));
+    sessionsLoaded.current = true;
+    return nextSessions;
+  }, []);
+
+  function toggleChatNav() {
+    setActiveSection("chat");
+    // From another section the first click opens the history; on the chat page the
+    // same control collapses and reopens it.
+    setChatNavOpen((open) => (activeSection === "chat" ? !open : true));
+  }
+
+  function openChatSession(session) {
+    sessionChosen.current = true;
+    setActiveSession(session);
+    setActiveSection("chat");
+    setChatNavOpen(true);
+  }
+
+  function startNewChat() {
+    sessionChosen.current = true;
+    setActiveSession(null);
+    setActiveSection("chat");
+    setChatNavOpen(true);
+  }
+
+  function handleSessionCreated(session) {
+    // Add the open conversation immediately; the answer then refreshes the list with
+    // its generated title once the turn is saved.
+    sessionChosen.current = true;
+    setSessions((current) => [session, ...current.filter((item) => item.id !== session.id)]);
+    setActiveSession(session);
+    sessionsLoaded.current = true;
+  }
+
+  function askDeleteSession(session) {
+    setDeleteSessionError("");
+    setSessionToDelete(session);
+  }
+
+  async function deleteSession(session) {
+    if (!session || deletingSession) return;
+    setDeletingSession(true);
+    setDeleteSessionError("");
+    try {
+      await chatRequest(`/sessions/${session.id}`, { method: "DELETE" });
+      setSessions((current) => current.filter((item) => item.id !== session.id));
+      setActiveSession((current) => (current?.id === session.id ? null : current));
+      setSessionToDelete(null);
+    } catch (requestError) {
+      setDeleteSessionError(requestError.message || "删除对话失败，请稍后重试。");
+    } finally {
+      setDeletingSession(false);
+    }
+  }
 
   function openProfile() {
     setProfileName(user.display_name || "");
@@ -407,15 +517,62 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               <span className="nav-indicator" aria-hidden="true" />
               {t("学习资料")}
             </button>
-            <button
-              className={`nav-item${activeSection === "chat" ? " is-current" : ""}`}
-              type="button"
-              aria-current={activeSection === "chat" ? "page" : undefined}
-              onClick={() => setActiveSection("chat")}
-            >
-              <span className="nav-indicator" aria-hidden="true" />
-              {t("AI 问答")}
-            </button>
+            <div className={`nav-group${activeSection === "chat" && chatNavOpen ? " is-open" : ""}`}>
+              <button
+                className={`nav-item${activeSection === "chat" ? " is-current" : ""}`}
+                type="button"
+                aria-current={activeSection === "chat" ? "page" : undefined}
+                aria-expanded={activeSection === "chat" && chatNavOpen}
+                aria-controls="chat-session-nav"
+                onClick={toggleChatNav}
+              >
+                <span className="nav-indicator" aria-hidden="true" />
+                {t("AI 问答")}
+                <span className="nav-chevron" aria-hidden="true" />
+              </button>
+              {activeSection === "chat" && chatNavOpen && (
+                <div className="nav-chat-sessions" id="chat-session-nav" role="group" aria-label={t("对话历史")}>
+                  {sessionsLoading ? (
+                    <p className="nav-chat-status" role="status">{t("正在加载对话…")}</p>
+                  ) : sessionsError ? (
+                    <div className="nav-chat-status nav-chat-error" role="alert">
+                      <span>{t(sessionsError)}</span>
+                      <button
+                        className="nav-chat-retry"
+                        type="button"
+                        onClick={() => setSessionsReloadKey((key) => key + 1)}
+                      >
+                        {t("重试")}
+                      </button>
+                    </div>
+                  ) : sessions.length ? sessions.map((session) => (
+                    <div className="nav-chat-session" key={session.id}>
+                      <button
+                        className={`nav-chat-item${activeSession?.id === session.id ? " is-active" : ""}`}
+                        type="button"
+                        aria-current={activeSession?.id === session.id ? "true" : undefined}
+                        title={formatSessionTitle(session, t)}
+                        onClick={() => openChatSession(session)}
+                      >
+                        <strong>{formatSessionTitle(session, t)}</strong>
+                        <span>{session.message_count || 0} {t("条消息")}</span>
+                      </button>
+                      <button
+                        className="nav-chat-delete"
+                        type="button"
+                        title={t("删除对话")}
+                        aria-label={t("删除对话：{title}", { title: formatSessionTitle(session, t) })}
+                        onClick={() => askDeleteSession(session)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )) : (
+                    <p className="nav-chat-status">{t("发送第一个问题后，对话会显示在这里。")}</p>
+                  )}
+                </div>
+              )}
+            </div>
             <button
               className={`nav-item${activeSection === "flashcards" ? " is-current" : ""}`}
               type="button"
@@ -479,6 +636,10 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
         {error && <p className="dashboard-error" role="alert">{t(error)}</p>}
         {activeSection === "documents" ? <DocumentsPage /> : activeSection === "chat" ? (
           <ChatPage
+            activeSession={activeSession}
+            onSessionCreated={handleSessionCreated}
+            onRefreshSessions={refreshSessions}
+            onNewSession={startNewChat}
             onOpenDocuments={() => setActiveSection("documents")}
             onOpenFlashcards={() => setActiveSection("flashcards")}
           />
@@ -641,6 +802,59 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
             </button>
           </div>
         </form>
+      </dialog>
+
+      <dialog
+        ref={deleteSessionDialog}
+        className="profile-dialog"
+        aria-labelledby="chat-delete-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          if (!deletingSession) setSessionToDelete(null);
+        }}
+        onClose={() => {
+          setSessionToDelete(null);
+          setDeleteSessionError("");
+        }}
+      >
+        <div className="profile-dialog-heading">
+          <div>
+            <p className="eyebrow">{t("删除对话")}</p>
+            <h2 id="chat-delete-title">{t("确定删除这段对话？")}</h2>
+          </div>
+          <button
+            className="dialog-close"
+            type="button"
+            aria-label={t("取消删除")}
+            onClick={() => setSessionToDelete(null)}
+            disabled={deletingSession}
+          >
+            ×
+          </button>
+        </div>
+        <p className="document-delete-copy">
+          {sessionToDelete ? formatSessionTitle(sessionToDelete, t) : ""}
+          {t("及其中的消息会被移除；由它生成的闪卡会保留，可以继续复习。")}
+        </p>
+        {deleteSessionError && <p className="form-error" role="alert">{t(deleteSessionError)}</p>}
+        <div className="profile-actions">
+          <button
+            className="cancel-button"
+            type="button"
+            onClick={() => setSessionToDelete(null)}
+            disabled={deletingSession}
+          >
+            {t("保留对话")}
+          </button>
+          <button
+            className="danger-button"
+            type="button"
+            onClick={() => sessionToDelete && deleteSession(sessionToDelete)}
+            disabled={deletingSession}
+          >
+            {deletingSession ? t("正在删除…") : t("确认删除")}
+          </button>
+        </div>
       </dialog>
     </div>
   );
