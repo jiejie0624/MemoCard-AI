@@ -2960,3 +2960,6 @@ html[lang="en"] .auth-story p { max-width: 34ch; }
   width: min(var(--chat-content-width, 760px), 100%);
   margin-inline: auto;
 }
+/* The chat column was too narrow to read comfortably at this page width; 960px keeps
+   long answers readable while using most of the 1120px page. */
+.chat-page { --chat-content-width: 960px; }
