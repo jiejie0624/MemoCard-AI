@@ -2637,3 +2637,24 @@ a[role="button"]:active {
 .chat-composer { width: 100%; display: flex; align-items: flex-end; gap: 10px; }
 .chat-composer textarea { flex: 1 1 auto; min-width: 0; }
 .chat-composer .composer-plus { order: -1; }
+/* Chat layout, final pass: the transcript reads top to bottom, the page scrolls (not an
+   inner box), and the composer is one row with the field taking the free width. */
+.chat-message-list { display: flex; flex-direction: column; gap: 16px; max-height: none; overflow: visible; }
+.chat-thread { max-height: none; overflow: visible; }
+.chat-workspace { display: block; }
+.chat-composer {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+.chat-composer textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.chat-composer .composer-plus { order: -1; }
+.chat-composer > .primary-button { flex: 0 0 auto; }
