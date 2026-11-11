@@ -18,6 +18,7 @@ class FakeCalendarRepository:
         self.user_id = user_id
         self.day_count_args = None
         self.day_card_args = None
+        self.document_id = uuid4()
 
     def get_summary(self, user_id, timezone_name):
         if user_id != self.user_id:
@@ -41,7 +42,7 @@ class FakeCalendarRepository:
             "question": "What is spaced repetition?",
             "answer": "A planned review process.",
             "next_review_at": datetime(2026, 11, 12, tzinfo=timezone.utc),
-            "source_names": ["lecture-notes.pdf"],
+            "sources": [{"id": self.document_id, "name": "lecture-notes.pdf"}],
         }]
 
 
@@ -117,7 +118,7 @@ class CalendarApiTests(unittest.IsolatedAsyncioTestCase):
     async def test_day_returns_only_the_authenticated_users_cards(self):
         status_code, body = await asgi_request("/api/revisions/day?date=2026-11-12")
         self.assertEqual(status_code, 200)
-        self.assertEqual(body["cards"][0]["source_names"], ["lecture-notes.pdf"])
+        self.assertEqual(body["cards"][0]["sources"], [{"id": str(self.repository.document_id), "name": "lecture-notes.pdf"}])
         self.assertEqual(
             self.repository.day_card_args,
             (self.user_id, "Asia/Kuala_Lumpur", date(2026, 11, 12)),

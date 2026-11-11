@@ -115,6 +115,22 @@ export default function CalendarPage({ onStartReview }) {
     });
   }, [counts, range]);
 
+  // A busy day can hold dozens of cards from several documents. Grouping by source keeps
+  // the panel to one line per document, and everything starts collapsed so opening a day
+  // never reveals the questions before the student has tried to recall them.
+  const cardGroups = useMemo(() => {
+    const groups = new Map();
+    for (const card of dayCards) {
+      const source = card.sources?.[0];
+      const key = source?.id ?? "unsourced";
+      if (!groups.has(key)) {
+        groups.set(key, { key, name: source?.name ?? t("无来源的卡片"), cards: [] });
+      }
+      groups.get(key).cards.push(card);
+    }
+    return [...groups.values()];
+  }, [dayCards, t]);
+
   function moveMonth(amount) {
     const nextMonth = shiftMonth(month, amount);
     setMonth(nextMonth);
@@ -179,17 +195,22 @@ export default function CalendarPage({ onStartReview }) {
             </div>
             {dayLoading ? <p className="calendar-status">{t("正在加载当天卡片…")}</p> : dayCards.length ? (
               <div className="calendar-card-list">
-                {dayCards.map((card, index) => (
-                  // Collapsed by default: opening a day should not reveal every question
-                  // before the student has had a chance to recall it.
-                  <details className="calendar-card-item" key={card.id}>
+                {cardGroups.map((group) => (
+                  <details className="calendar-group" key={group.key}>
                     <summary>
-                      <span className="calendar-card-index">{t("第 {count} 张", { count: index + 1 })}</span>
-                      {card.source_names?.length > 0 && (
-                        <span className="calendar-card-source">{card.source_names.join(" · ")}</span>
-                      )}
+                      <span className="calendar-group-name">{group.name}</span>
+                      <span className="calendar-group-count">{t("{count} 张", { count: group.cards.length })}</span>
                     </summary>
-                    <h3>{card.question}</h3>
+                    <ul className="calendar-group-cards">
+                      {group.cards.map((card, index) => (
+                        <li key={card.id}>
+                          <details className="calendar-card-item">
+                            <summary>{t("第 {count} 张", { count: index + 1 })}</summary>
+                            <h3>{card.question}</h3>
+                          </details>
+                        </li>
+                      ))}
+                    </ul>
                   </details>
                 ))}
               </div>

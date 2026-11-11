@@ -117,28 +117,33 @@ function DocumentRow({ document, onDelete, onRetryDelete, onRetryProcessing, del
           >
             {deleting ? t("清理中…") : t("重试清理")}
           </button>
-        ) : canRetryProcessing ? (
-          <button
-            className="document-action document-action-retry"
-            type="button"
-            onClick={() => onRetryProcessing(document)}
-            disabled={processing}
-          >
-            {processing
-              ? t("处理中…")
-              : document.status === "uploaded"
-                ? t("开始处理")
-                : t("重试处理")}
-          </button>
         ) : (
-          <button
-            className="document-action document-action-delete"
-            type="button"
-            onClick={() => onDelete(document)}
-            disabled={deleting}
-          >
-            {t("删除")}
-          </button>
+          <>
+            {/* Retry and delete are separate decisions: a failed document still has to
+                be removable, so one no longer replaces the other. */}
+            {canRetryProcessing && (
+              <button
+                className="document-action document-action-retry"
+                type="button"
+                onClick={() => onRetryProcessing(document)}
+                disabled={processing}
+              >
+                {processing
+                  ? t("处理中…")
+                  : document.status === "uploaded"
+                    ? t("开始处理")
+                    : t("重试处理")}
+              </button>
+            )}
+            <button
+              className="document-action document-action-delete"
+              type="button"
+              onClick={() => onDelete(document)}
+              disabled={deleting}
+            >
+              {t("删除")}
+            </button>
+          </>
         )}
       </div>
     </li>
@@ -157,7 +162,22 @@ export default function DocumentsPage() {
   const [pageError, setPageError] = useState("");
   const [operationError, setOperationError] = useState("");
   const [confirmingDocument, setConfirmingDocument] = useState(null);
+  const [processingSeconds, setProcessingSeconds] = useState(0);
   const hasProcessing = documents.some((document) => document.status === "processing");
+
+  // A count-up is the only honest progress signal available while the API extracts and
+  // indexes; without it the page looks frozen for up to two minutes.
+  useEffect(() => {
+    if (!processingId) {
+      setProcessingSeconds(0);
+      return undefined;
+    }
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      setProcessingSeconds(Math.round((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [processingId]);
 
   useEffect(() => {
     const dialog = deleteDialog.current;
@@ -219,7 +239,7 @@ export default function DocumentsPage() {
     try {
       const uploaded = await requestDocuments("", { method: "POST", body: form });
       setProcessingId(uploaded.id);
-      await requestDocuments(`/${uploaded.id}/process`, { method: "POST", timeoutMs: 120000 });
+      await processDocument(uploaded.id);
       await loadDocuments();
     } catch (error) {
       setOperationError(error.message);
@@ -230,11 +250,28 @@ export default function DocumentsPage() {
     }
   }
 
+  /**
+   * Index a document, retrying once by itself.
+   *
+   * Failures here are usually transient (a cold model, a dropped connection, a
+   * restarted instance), and the first attempt has already paid the expensive part
+   * of the work: the extracted chunks are stored. A single silent retry therefore
+   * rescues most failures without asking the user to notice anything.
+   */
+  async function processDocument(documentId) {
+    try {
+      return await requestDocuments(`/${documentId}/process`, { method: "POST", timeoutMs: 120000 });
+    } catch (firstError) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return requestDocuments(`/${documentId}/process`, { method: "POST", timeoutMs: 120000 });
+    }
+  }
+
   async function retryProcessing(document) {
     setProcessingId(document.id);
     setOperationError("");
     try {
-      await requestDocuments(`/${document.id}/process`, { method: "POST", timeoutMs: 120000 });
+      await processDocument(document.id);
       await loadDocuments();
     } catch (error) {
       setOperationError(error.message);
@@ -304,11 +341,13 @@ export default function DocumentsPage() {
           <span className="upload-hint-mark" aria-hidden="true">↑</span>
           <div>
             <strong>{t("支持 PDF、UTF-8 TXT 和 PPTX")}</strong>
-            <p>{t("单个文件最大 4 MiB。旧式 PPT 暂不支持。")}</p>
+            <p>{t("单个文件最大 4 MiB（上传通道限制）。旧式 PPT 暂不支持。")}</p>
           </div>
           {(uploading || processingId) && (
             <span className="uploading-indicator" role="status">
-              {uploading ? t("正在安全上传") : t("正在提取文字并整理来源")}
+              {uploading
+                ? t("正在安全上传")
+                : t("正在提取文字并整理来源 · 已用 {seconds} 秒", { seconds: processingSeconds })}
             </span>
           )}
         </div>

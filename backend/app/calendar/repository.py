@@ -76,11 +76,14 @@ class CalendarRepository:
             return connection.execute(
                 """
                 SELECT f.id, f.question, f.answer, f.next_review_at,
+                       -- Grouping in the UI needs the document identity, not just its
+                       -- name: two uploads can share a filename.
                        COALESCE(
-                           array_agg(DISTINCT d.original_filename)
-                               FILTER (WHERE d.id IS NOT NULL),
-                           ARRAY[]::text[]
-                       ) AS source_names
+                           jsonb_agg(DISTINCT jsonb_build_object(
+                               'id', d.id, 'name', d.original_filename
+                           )) FILTER (WHERE d.id IS NOT NULL),
+                           '[]'::jsonb
+                       ) AS sources
                 FROM flashcards AS f
                 LEFT JOIN flashcard_sources AS fs
                   ON fs.flashcard_id = f.id AND fs.user_id = f.user_id

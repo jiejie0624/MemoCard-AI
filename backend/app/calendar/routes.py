@@ -25,12 +25,17 @@ class CalendarResponse(BaseModel):
     days: list[DayCount]
 
 
+class DayCardSource(BaseModel):
+    id: UUID
+    name: str
+
+
 class DayCard(BaseModel):
     id: UUID
     question: str
     answer: str
     next_review_at: datetime
-    source_names: list[str]
+    sources: list[DayCardSource]
 
 
 class DayCardsResponse(BaseModel):

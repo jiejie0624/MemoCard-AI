@@ -6,8 +6,8 @@ const PENDING_REVIEW_KEY = "memocard.pending-review.v1";
 // The binary verdict maps onto SM-2 without inventing a score: a recalled card is a
 // "good" answer, a missed one restarts the sequence, and skipping counts as a failure.
 const QUALITY_CORRECT = 4;
+const QUALITY_PARTIAL = 3;
 const QUALITY_WRONG = 2;
-const QUALITY_SKIPPED = 1;
 
 async function request(path, options = {}) {
   let response;
@@ -65,6 +65,11 @@ export default function ReviewPage() {
   const [pendingReview, setPendingReview] = useState(readPendingReview);
   const [submittingQuality, setSubmittingQuality] = useState(null);
   const [sessionTotal, setSessionTotal] = useState(0);
+  const [lastScheduled, setLastScheduled] = useState("");
+  // Practice walks the whole deck without touching the schedule: finishing today's due
+  // cards should not be the end of the session for someone who wants to keep going.
+  const [practice, setPractice] = useState(null);
+  const [practiceRevealed, setPracticeRevealed] = useState(false);
 
   const dueCards = useMemo(
     () => cards.filter((card) => new Date(card.next_review_at).getTime() <= Date.now()),
@@ -101,6 +106,7 @@ export default function ReviewPage() {
     if (!currentCard || !answer || checking) return;
     setChecking(true);
     setError("");
+    setLastScheduled("");
     try {
       const result = await request(`/api/flashcards/${currentCard.id}/answer-check`, {
         method: "POST",
@@ -153,6 +159,9 @@ export default function ReviewPage() {
       });
       sessionStorage.removeItem(PENDING_REVIEW_KEY);
       setPendingReview(null);
+      // Telling the student when the card comes back is the only confirmation that the
+      // rating actually changed the schedule; without it the card just disappears.
+      setLastScheduled(formatDate(result.next_review_at, locale));
       setCards((current) => current.map((card) => card.id === currentCard.id
         ? { ...card, next_review_at: result.next_review_at }
         : card));
@@ -168,6 +177,58 @@ export default function ReviewPage() {
   const checkedQuality = verdict && verdict.correct !== null
     ? (verdict.correct ? QUALITY_CORRECT : QUALITY_WRONG)
     : null;
+  const practiceCard = practice ? cards[practice.index] : null;
+
+  if (practiceCard) {
+    return (
+      <main className="review-page">
+        <header className="review-page-heading">
+          <div>
+            <p className="eyebrow">{t("MEMOCARD AI · 间隔复习")}</p>
+            <h1>{t("练习模式")}</h1>
+            <p>{t("练习不影响复习排期，随时可以退出。")}</p>
+          </div>
+          <button className="secondary-button" type="button" onClick={() => setPractice(null)}>
+            {t("退出练习")}
+          </button>
+        </header>
+
+        <section className="review-session">
+          <div className="review-session-meta">
+            <span>{t("第 {count} 张", { count: practice.index + 1 })} / {cards.length}</span>
+            {practiceCard.sources?.[0]?.document_name && <span>{practiceCard.sources[0].document_name}</span>}
+          </div>
+          <article className="review-flashcard">
+            <p className="eyebrow">{practiceRevealed ? t("参考答案") : t("问题")}</p>
+            <h2>{practiceRevealed ? practiceCard.answer : practiceCard.question}</h2>
+            {!practiceRevealed && (
+              <button className="primary-button" type="button" onClick={() => setPracticeRevealed(true)}>
+                {t("显示答案")}
+              </button>
+            )}
+          </article>
+          {practiceRevealed && (
+            <div className="review-actions">
+              <button className="secondary-button" type="button" onClick={() => setPractice(null)}>
+                {t("退出练习")}
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => {
+                  setPracticeRevealed(false);
+                  const next = practice.index + 1;
+                  setPractice(next < cards.length ? { index: next } : null);
+                }}
+              >
+                {practice.index + 1 < cards.length ? t("下一张") : t("结束练习")}
+              </button>
+            </div>
+          )}
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="review-page">
@@ -183,6 +244,10 @@ export default function ReviewPage() {
           </div>
         )}
       </header>
+
+      {lastScheduled && (
+        <p className="review-receipt" role="status">{t("已记录，下次复习：{date}", { date: lastScheduled })}</p>
+      )}
 
       {error && (
         <div className="review-error" role="alert">
@@ -251,35 +316,24 @@ export default function ReviewPage() {
 
           {revealed && (
             <div className="review-actions">
-              {checkedQuality !== null ? (
+              {/* Three levels instead of two: "partly right" keeps a half-recalled card
+                  from being scheduled exactly like a blank one. The AI verdict only
+                  highlights a suggestion; the student always makes the final call. */}
+              {[
+                { quality: QUALITY_WRONG, label: t("我答错了") },
+                { quality: QUALITY_PARTIAL, label: t("部分正确") },
+                { quality: QUALITY_CORRECT, label: t("我答对了") },
+              ].map(({ quality, label }) => (
                 <button
-                  className="primary-button"
+                  key={quality}
+                  className={quality === checkedQuality ? "primary-button" : "secondary-button"}
                   type="button"
-                  onClick={() => submitReview(checkedQuality)}
+                  onClick={() => submitReview(quality)}
                   disabled={submittingQuality !== null}
                 >
-                  {submittingQuality !== null ? t("保存中…") : t("继续")}
+                  {submittingQuality === quality ? t("保存中…") : label}
                 </button>
-              ) : (
-                <>
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={() => submitReview(QUALITY_WRONG)}
-                    disabled={submittingQuality !== null}
-                  >
-                    {t("我答错了")}
-                  </button>
-                  <button
-                    className="primary-button"
-                    type="button"
-                    onClick={() => submitReview(QUALITY_CORRECT)}
-                    disabled={submittingQuality !== null}
-                  >
-                    {t("我答对了")}
-                  </button>
-                </>
-              )}
+              ))}
               {pendingForCurrent && (
                 <button
                   className="text-button"
@@ -301,6 +355,15 @@ export default function ReviewPage() {
             ? t("全部完成。下一张卡片安排在 {date}。", { date: formatDate(cards.reduce((soonest, card) => new Date(card.next_review_at) < new Date(soonest.next_review_at) ? card : soonest).next_review_at, locale) })
             : t("先去 AI 问答中生成并保存闪卡，卡片到期后会出现在这里。")}</p>
           <button className="secondary-button" type="button" onClick={loadCards}>{t("刷新复习列表")}</button>
+          {cards.length > 0 && (
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => { setPracticeRevealed(false); setPractice({ index: 0 }); }}
+            >
+              {t("再练一遍（不计入排期）")}
+            </button>
+          )}
         </section>
       )}
     </main>

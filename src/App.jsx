@@ -11,6 +11,16 @@ import "./styles.css";
 
 const AUTH_API = "/api/auth";
 
+// A short curated list instead of asking people to type an IANA identifier; the
+// account's own zone is added when it is not one of these.
+const TIMEZONE_OPTIONS = [
+  "Asia/Kuala_Lumpur", "Asia/Singapore", "Asia/Hong_Kong", "Asia/Shanghai", "Asia/Taipei",
+  "Asia/Tokyo", "Asia/Seoul", "Asia/Bangkok", "Asia/Jakarta", "Asia/Kolkata",
+  "Australia/Sydney", "Europe/London", "Europe/Paris", "Europe/Berlin",
+  "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+  "UTC",
+];
+
 function getBrowserTimezone() {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -279,6 +289,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
   const [summaryError, setSummaryError] = useState("");
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
+  const [documentCount, setDocumentCount] = useState(null);
   const displayName = user.display_name || user.email;
   const initials = displayName.trim().slice(0, 1).toUpperCase();
 
@@ -291,6 +302,18 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
       .then((result) => { if (!cancelled) setSummary(result); })
       .catch((requestError) => { if (!cancelled) setSummaryError(requestError.message); })
       .finally(() => { if (!cancelled) setSummaryLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeSection, summaryRefreshKey]);
+
+  useEffect(() => {
+    if (activeSection !== "home") return undefined;
+    let cancelled = false;
+    // The first screen has to lead somewhere useful: with no material yet, the review
+    // card would show an empty state while the real first step is uploading a file.
+    fetch(apiUrl("/api/documents"), { credentials: "include", signal: AbortSignal.timeout(12000) })
+      .then((response) => (response.ok ? response.json() : []))
+      .then((items) => { if (!cancelled) setDocumentCount(items.length); })
+      .catch(() => { if (!cancelled) setDocumentCount(null); });
     return () => { cancelled = true; };
   }, [activeSection, summaryRefreshKey]);
 
@@ -439,7 +462,7 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
             aria-label={t("退出登录")}
             title={t("退出登录")}
           >
-            {signingOut ? "…" : "↗"}
+            {signingOut ? "…" : t("退出")}
           </button>
         </div>
       </aside>
@@ -472,6 +495,19 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
               {t("个人空间")}
             </span>
           </header>
+
+          {documentCount === 0 && (
+            <section className="workspace-note" aria-labelledby="start-card-title">
+              <div className="note-mark" aria-hidden="true">✦</div>
+              <div>
+                <h2 id="start-card-title">{t("先上传第一份资料")}</h2>
+                <p>{t("上传课程资料后，这里会显示你的学习进度。")}</p>
+                <button className="primary-button" type="button" onClick={() => setActiveSection("documents")}>
+                  {t("前往学习资料 →")}
+                </button>
+              </div>
+            </section>
+          )}
 
           <section className="review-card" aria-labelledby="review-card-title">
             <div className="review-copy">
@@ -567,18 +603,22 @@ function Dashboard({ user, onUserUpdated, onLoggedOut }) {
           </label>
           <label className="field-group">
             <span>{t("时区")}</span>
-            <input
-              type="text"
+            <select
               name="timezone"
               value={profileTimezone}
               onChange={(event) => setProfileTimezone(event.target.value)}
-              maxLength={100}
               aria-describedby="timezone-help"
               required
-            />
+            >
+              {(TIMEZONE_OPTIONS.includes(profileTimezone)
+                ? TIMEZONE_OPTIONS
+                : [profileTimezone, ...TIMEZONE_OPTIONS]).map((zone) => (
+                <option key={zone} value={zone}>{zone}</option>
+              ))}
+            </select>
           </label>
           <p className="field-help" id="timezone-help">
-            {t("使用 IANA 时区名称；新账号会自动采用当前设备时区。")}
+            {t("选择你所在的时区；设备时区：{zone}", { zone: getBrowserTimezone() })}
           </p>
           {profileError && <p className="form-error" role="alert">{t(profileError)}</p>}
           <div className="profile-actions">

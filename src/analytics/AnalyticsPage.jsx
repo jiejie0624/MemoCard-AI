@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { apiUrl } from "../api.js";
 import { useLanguage } from "../i18n.jsx";
 
+// Layout follows the common analytics hierarchy: one hero metric, then proportions, then
+// a time trend. Everything is plain SVG/CSS, so no chart library enters the bundle.
+
 async function requestSummary() {
   let response;
   try {
@@ -27,15 +30,32 @@ function formatDay(value, locale) {
     .format(new Date(`${value}T00:00:00Z`));
 }
 
-function Bar({ label, value, percent }) {
+function todayInZone(timezone) {
+  // en-CA formats as YYYY-MM-DD, which matches the API's date strings.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
+}
+
+function AccuracyRing({ rate }) {
+  const size = 88;
+  const stroke = 8;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const value = rate === null ? 0 : Math.min(1, Math.max(0, rate));
   return (
-    <li>
-      <span className="analytics-bar-label">{label}</span>
-      <span className="analytics-bar-track" aria-hidden="true">
-        <span className="analytics-bar-fill" style={{ width: `${percent}%` }} />
-      </span>
-      <span className="analytics-bar-value">{value}</span>
-    </li>
+    <svg className="analytics-ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#eef2f8" strokeWidth={stroke} />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="#2878e3"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={`${circumference * value} ${circumference}`}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+    </svg>
   );
 }
 
@@ -59,13 +79,15 @@ export default function AnalyticsPage() {
 
   useEffect(() => { loadSummary(); }, [loadSummary]);
 
-  const masteryRows = summary ? [
-    { key: "new", label: t("新卡"), value: summary.mastery.new },
+  const mastery = summary ? [
     { key: "learning", label: t("学习中"), value: summary.mastery.learning },
     { key: "mastered", label: t("已掌握"), value: summary.mastery.mastered },
+    { key: "new", label: t("新卡"), value: summary.mastery.new },
   ] : [];
-  const masteryMax = Math.max(1, ...masteryRows.map((row) => row.value));
+  const masteryTotal = mastery.reduce((sum, row) => sum + row.value, 0);
   const upcomingMax = Math.max(1, ...(summary?.upcoming ?? []).map((day) => day.count));
+  const today = summary ? todayInZone(summary.timezone) : "";
+  const streakDots = Math.min(summary?.streak_days ?? 0, 7);
 
   return (
     <main className="analytics-page">
@@ -88,52 +110,91 @@ export default function AnalyticsPage() {
         <p className="analytics-status" role="status">{t("正在汇总学习数据…")}</p>
       ) : summary && (
         <>
-          <section className="analytics-overview" aria-label={t("学习概览")}>
-            <div>
-              <strong>{summary.reviewed_total}</strong>
-              <span>{t("次复习")}</span>
+          <section className="analytics-hero" aria-label={t("学习概览")}>
+            <div className="analytics-metric">
+              <span className="analytics-label">{t("连续复习")}</span>
+              <p className="analytics-value">
+                {summary.streak_days}<span className="analytics-unit">{t("天")}</span>
+              </p>
+              <span className="analytics-dots" aria-hidden="true">
+                {Array.from({ length: 7 }, (_, index) => (
+                  <i key={index} className={index < streakDots ? "is-on" : ""} />
+                ))}
+              </span>
             </div>
-            <div>
-              <strong>{summary.correct_rate === null ? "—" : `${Math.round(summary.correct_rate * 100)}%`}</strong>
-              <span>{t("正确率")}</span>
+
+            <div className="analytics-metric">
+              <span className="analytics-label">{t("正确率")}</span>
+              <span className="analytics-ring-wrap">
+                <AccuracyRing rate={summary.correct_rate} />
+                <strong>{summary.correct_rate === null ? "—" : `${Math.round(summary.correct_rate * 100)}%`}</strong>
+              </span>
             </div>
-            <div>
-              <strong>{summary.streak_days}</strong>
-              <span>{t("天连续复习")}</span>
+
+            <div className="analytics-metric">
+              <span className="analytics-label">{t("次复习")}</span>
+              <p className="analytics-value">{summary.reviewed_total}</p>
             </div>
           </section>
 
-          {summary.reviewed_total > 0 && summary.correct_rate === null && (
-            <p className="analytics-hint">{t("复习满 5 次后开始显示正确率。")}</p>
+          {summary.correct_rate === null && (
+            <p className="analytics-hint">
+              {summary.reviewed_total === 0
+                ? t("还没有复习记录，复习几次后这里会显示正确率。")
+                : t("复习满 5 次后开始显示正确率。")}
+            </p>
           )}
 
           <section className="analytics-section" aria-labelledby="analytics-mastery-title">
-            <h2 id="analytics-mastery-title">{t("掌握程度")}</h2>
-            <ul className="analytics-bars">
-              {masteryRows.map((row) => (
-                <Bar
-                  key={row.key}
-                  label={row.label}
-                  value={row.value}
-                  percent={Math.round((row.value / masteryMax) * 100)}
-                />
-              ))}
-            </ul>
+            <div className="analytics-section-heading">
+              <h2 id="analytics-mastery-title">{t("掌握程度")}</h2>
+              <span>{t("共 {count} 张", { count: masteryTotal })}</span>
+            </div>
+            {masteryTotal > 0 ? (
+              <>
+                <div className="analytics-stack" aria-hidden="true">
+                  {mastery.map((row) => (
+                    <span
+                      key={row.key}
+                      className={`analytics-stack-seg is-${row.key}`}
+                      style={{ flexGrow: row.value }}
+                    />
+                  ))}
+                </div>
+                <ul className="analytics-legend">
+                  {mastery.map((row) => (
+                    <li key={row.key}>
+                      <i className={`is-${row.key}`} aria-hidden="true" />
+                      {row.label}
+                      <strong>{row.value}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="analytics-empty">{t("保存闪卡后，这里会显示掌握程度。")}</p>
+            )}
           </section>
 
           <section className="analytics-section" aria-labelledby="analytics-load-title">
-            <h2 id="analytics-load-title">{t("未来 7 天复习负荷")}</h2>
+            <div className="analytics-section-heading">
+              <h2 id="analytics-load-title">{t("未来 7 天复习负荷")}</h2>
+            </div>
             {summary.upcoming.length ? (
-              <ul className="analytics-bars">
+              <div className="analytics-columns">
                 {summary.upcoming.map((day) => (
-                  <Bar
-                    key={day.date}
-                    label={formatDay(day.date, locale)}
-                    value={day.count}
-                    percent={Math.round((day.count / upcomingMax) * 100)}
-                  />
+                  <div className={`analytics-column${day.date === today ? " is-today" : ""}`} key={day.date}>
+                    <span className="analytics-column-value">{day.count}</span>
+                    <span className="analytics-column-track" aria-hidden="true">
+                      <span
+                        className="analytics-column-bar"
+                        style={{ height: `${Math.max(6, Math.round((day.count / upcomingMax) * 100))}%` }}
+                      />
+                    </span>
+                    <span className="analytics-column-label">{formatDay(day.date, locale)}</span>
+                  </div>
                 ))}
-              </ul>
+              </div>
             ) : (
               <p className="analytics-empty">{t("接下来 7 天没有安排复习。")}</p>
             )}
