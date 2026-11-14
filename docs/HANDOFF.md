@@ -4,7 +4,7 @@
 
 ## 1. 仓库状态
 
-- 分支 `feature/authentication`，最新提交 `194e174`，已推送，工作区干净
+- 分支 `feature/authentication`，最新提交以 `git log -1` 为准（本文不记录哈希，避免过期）
 - 后端 59 个测试全部通过；前端 `npm run build` 通过
 - 前端部署在 **Vercel**，后端在 **Render**，数据库 **Neon + pgvector**
 
@@ -56,3 +56,5 @@
 - DSH 浏览器插件曾配置为 `channel: chrome`，会弹你的 Chrome；
   已改回 `bundled`（`~/.dsh/dsh-builtin-browser-host/settings.json`）
 - 512 MB 实例上任何大模型都会 OOM，不要再用大头文件
+- 上传上限已改为 15 MiB（原 4 MiB 是 Vercel 时代的限制）
+- 文档处理改成了前端轮询状态，服务端仍是同步接口
