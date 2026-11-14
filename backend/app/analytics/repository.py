@@ -94,6 +94,18 @@ class AnalyticsRepository:
             else None
         )
 
+        # A week is seven days, including the empty ones: otherwise the chart joins the
+        # first and last day with work and draws a slope that does not exist.
+        today_date = reviews["today"]
+        counts_by_day = {row["day"]: row["card_count"] for row in upcoming}
+        upcoming_week = [
+            {
+                "date": today_date + timedelta(days=offset),
+                "count": counts_by_day.get(today_date + timedelta(days=offset), 0),
+            }
+            for offset in range(UPCOMING_DAYS)
+        ]
+
         return {
             "reviewed_total": reviewed_total,
             "correct_rate": correct_rate,
@@ -103,9 +115,7 @@ class AnalyticsRepository:
                 "learning": mastery["learning_cards"],
                 "mastered": mastery["mastered_cards"],
             },
-            "upcoming": [
-                {"date": row["day"], "count": row["card_count"]} for row in upcoming
-            ],
+            "upcoming": upcoming_week,
         }
 
 
