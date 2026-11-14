@@ -2995,3 +2995,27 @@ dialog[open] { animation: dialog-in 200ms cubic-bezier(.22, .61, .36, 1) both; }
   .calendar-group,
   dialog[open] { animation: none; }
 }
+/* The trend was stretching to the container height and the values picked up a badge
+   look; both are pinned here so the section stays a compact strip. */
+.analytics-spark { display: block; }
+.analytics-spark svg { display: block; width: 100%; height: 140px !important; max-height: 140px; }
+.analytics-spark-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.analytics-spark-labels span { display: grid; justify-items: center; gap: 2px; }
+.analytics-spark-labels strong {
+  display: block;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.analytics-spark-labels .is-today,
+.analytics-spark-labels .is-today strong { color: var(--accent); }
