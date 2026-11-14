@@ -343,11 +343,13 @@ export default function ReviewPage({ date = null }) {
               {/* Three levels instead of two: "partly right" keeps a half-recalled card
                   from being scheduled exactly like a blank one. The AI verdict only
                   highlights a suggestion; the student always makes the final call. */}
-              {[
-                { quality: QUALITY_WRONG, label: t("我答错了") },
-                { quality: QUALITY_PARTIAL, label: t("部分正确") },
-                { quality: QUALITY_CORRECT, label: t("我答对了") },
-              ].map(({ quality, label }) => (
+              {(checkedQuality === null
+                ? [
+                    { quality: QUALITY_WRONG, label: t("我答错了") },
+                    { quality: QUALITY_CORRECT, label: t("我答对了") },
+                  ]
+                : [{ quality: checkedQuality, label: t("下一张") }]
+              ).map(({ quality, label }) => (
                 <button
                   key={quality}
                   className={quality === checkedQuality ? "primary-button" : "secondary-button"}

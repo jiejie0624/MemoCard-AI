@@ -213,6 +213,7 @@ export default function AnalyticsPage() {
                 <div className="analytics-spark-labels">
                   {sparkPoints.map((point) => (
                     <span key={point.date} className={point.date === today ? "is-today" : ""}>
+                      <strong>{point.count}</strong>
                       {formatDay(point.date, locale)}
                     </span>
                   ))}

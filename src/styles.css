@@ -2963,3 +2963,35 @@ html[lang="en"] .auth-story p { max-width: 34ch; }
 /* The chat column was too narrow to read comfortably at this page width; 960px keeps
    long answers readable while using most of the 1120px page. */
 .chat-page { --chat-content-width: 960px; }
+/* --- Motion for actions ---------------------------------------------------
+   Page switches already fade in; individual items and dialogs follow the same idea so
+   every change has continuity instead of appearing instantly. */
+
+@keyframes item-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.chat-message,
+.flashcard-row,
+.calendar-card-item,
+.document-row,
+.calendar-group { animation: item-in 220ms cubic-bezier(.22, .61, .36, 1) both; }
+
+dialog[open] { animation: dialog-in 200ms cubic-bezier(.22, .61, .36, 1) both; }
+
+.analytics-spark-labels strong { display: block; color: var(--text-primary); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-message,
+  .flashcard-row,
+  .calendar-card-item,
+  .document-row,
+  .calendar-group,
+  dialog[open] { animation: none; }
+}
