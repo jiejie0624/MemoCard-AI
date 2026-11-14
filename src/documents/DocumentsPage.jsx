@@ -259,12 +259,22 @@ export default function DocumentsPage() {
    * rescues most failures without asking the user to notice anything.
    */
   async function processDocument(documentId) {
-    try {
-      return await requestDocuments(`/${documentId}/process`, { method: "POST", timeoutMs: 120000 });
-    } catch (firstError) {
+    // The request can take a minute, so it runs in the background while the list is
+    // polled: the row's own status is the progress indicator, and the page stays usable.
+    const work = requestDocuments(`/${documentId}/process`, {
+      method: "POST",
+      timeoutMs: 180000,
+    }).catch(() => null);
+
+    for (let attempt = 0; attempt < 90; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      return requestDocuments(`/${documentId}/process`, { method: "POST", timeoutMs: 120000 });
+      const items = await requestDocuments("", { timeoutMs: 12000 }).catch(() => null);
+      if (items) setDocuments(items);
+      const currentDoc = items?.find((item) => item.id === documentId);
+      if (currentDoc && !["uploaded", "processing", "chunked"].includes(currentDoc.status)) break;
+      if (!currentDoc && attempt > 2) break;
     }
+    await work;
   }
 
   async function retryProcessing(document) {
