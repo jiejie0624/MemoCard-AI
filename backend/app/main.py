@@ -1,4 +1,5 @@
 import os
+import threading
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,12 @@ from backend.app.flashcards.routes import router as flashcards_router
 from backend.app.review.routes import router as review_router
 
 app = FastAPI(title="MemoCard AI API")
+
+
+@app.on_event("startup")
+def _warm_embeddings() -> None:
+    """Warm the embedding model off the request path (see embeddings.warm_up)."""
+    threading.Thread(target=warm_up, name="embedder-warmup", daemon=True).start()
 frontend_origins = [
     origin.strip()
     for origin in os.getenv("FRONTEND_ORIGINS", "").split(",")
