@@ -26,7 +26,7 @@ from backend.app.processing.extraction import DocumentProcessingError, extract_d
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["documents"])
-MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 FILE_TYPES = {
     ".pdf": ("pdf", "application/pdf"),
     ".txt": ("txt", "text/plain; charset=utf-8"),
@@ -125,11 +125,11 @@ async def upload_document(
 ) -> dict:
     filename, file_format, media_type = _filename_and_type(file)
     if file.size is not None and file.size > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Files must be 4 MiB or smaller")
+        raise HTTPException(status_code=413, detail="Files must be 15 MiB or smaller")
 
     content = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Files must be 4 MiB or smaller")
+        raise HTTPException(status_code=413, detail="Files must be 15 MiB or smaller")
     _validate_file_content(file_format, content)
 
     document_id = uuid4()

@@ -350,7 +350,7 @@ class DocumentApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status_code, 422)
         self.assertEqual(self.storage.objects, {})
 
-        body, headers = make_pdf_upload("large.pdf", b"%PDF-" + b"x" * (4 * 1024 * 1024))
+        body, headers = make_pdf_upload("large.pdf", b"%PDF-" + b"x" * (15 * 1024 * 1024))
         status_code, _, _ = await asgi_request("POST", "/api/documents", body, headers)
         self.assertEqual(status_code, 413)
         self.assertEqual(self.storage.objects, {})

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { apiUrl } from "../api.js";
 import { useLanguage } from "../i18n.jsx";
 
-const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const ACCEPTED_FORMATS = ".pdf,.txt,.pptx";
 
 function formatSize(size) {
@@ -33,7 +33,7 @@ function statusLabel(status, t) {
 
 function responseError(status, detail) {
   if (status === 401) return "登录状态已失效，请重新登录。";
-  if (status === 413) return "文件超过 4 MiB 上限，请选择较小的文件。";
+  if (status === 413) return "文件超过 15 MiB 上限，请选择较小的文件。";
   if (status === 415) return "目前支持 PDF、UTF-8 TXT 和 PPTX。";
   if (status === 422) {
     if (detail?.includes("PDF")) return "文件内容与 PDF 格式不匹配，请检查文件后重试。";
@@ -228,7 +228,7 @@ export default function DocumentsPage() {
     event.target.value = "";
     if (!file) return;
     if (file.size > MAX_FILE_BYTES) {
-      setOperationError("文件超过 4 MiB 上限，请选择较小的文件。");
+      setOperationError("文件超过 15 MiB 上限，请选择较小的文件。");
       return;
     }
 
@@ -351,7 +351,7 @@ export default function DocumentsPage() {
           <span className="upload-hint-mark" aria-hidden="true">↑</span>
           <div>
             <strong>{t("支持 PDF、UTF-8 TXT 和 PPTX")}</strong>
-            <p>{t("单个文件最大 4 MiB（上传通道限制）。旧式 PPT 暂不支持。")}</p>
+            <p>{t("单个文件最大 15 MiB。旧式 PPT 暂不支持。")}</p>
           </div>
           {(uploading || processingId) && (
             <span className="uploading-indicator" role="status">
