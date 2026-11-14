@@ -12,6 +12,7 @@ from backend.app.chat.routes import router as chat_router
 from backend.app.dashboard.routes import router as dashboard_router
 from backend.app.documents.routes import router as documents_router
 from backend.app.flashcards.routes import router as flashcards_router
+from backend.app.processing.embeddings import warm_up
 from backend.app.review.routes import router as review_router
 
 app = FastAPI(title="MemoCard AI API")
