@@ -44,14 +44,3 @@ def _load_model():
 
     return FastTextEmbedding(model_name=MODEL_NAME, threads=1, enable_cpu_mem_arena=False)
 
-
-def warm_up() -> None:
-    """Load the model at boot so the first upload does not pay the cold start.
-
-    Called from a background thread: a failure here is silent on purpose, because the
-    request path already reports the real error to the user.
-    """
-    try:
-        _load_model()
-    except Exception:  # noqa: BLE001 - a warm-up must never break startup
-        pass

@@ -6,7 +6,6 @@ const PENDING_REVIEW_KEY = "memocard.pending-review.v1";
 // The binary verdict maps onto SM-2 without inventing a score: a recalled card is a
 // "good" answer, a missed one restarts the sequence, and skipping counts as a failure.
 const QUALITY_CORRECT = 4;
-const QUALITY_PARTIAL = 3;
 const QUALITY_WRONG = 2;
 
 async function request(path, options = {}) {
