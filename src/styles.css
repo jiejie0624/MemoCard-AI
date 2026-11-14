@@ -3019,3 +3019,21 @@ dialog[open] { animation: dialog-in 200ms cubic-bezier(.22, .61, .36, 1) both; }
 }
 .analytics-spark-labels .is-today,
 .analytics-spark-labels .is-today strong { color: var(--accent); }
+/* Seven cells instead of a curve: with this little data a strip of days is honest and
+   far easier to read than a line that joins unrelated points. */
+.analytics-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.analytics-week span {
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  padding: 14px 6px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, .65);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.analytics-week strong { color: var(--text-primary); font-size: 16px; font-weight: 620; }
+.analytics-week .is-today { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.analytics-week .is-today strong { color: var(--accent); }

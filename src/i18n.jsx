@@ -63,6 +63,7 @@ Object.assign(en, {
   "今天到期": "due today",
   "逾期 {days} 天": "{days} days overdue",
   "天": "days",
+  "天_1": "day",
   "{count} 张": "{count} cards",
   "删除整组": "Delete group",
   "收起对话历史": "Hide history",

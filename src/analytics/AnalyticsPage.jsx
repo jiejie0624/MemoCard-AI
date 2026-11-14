@@ -124,7 +124,7 @@ export default function AnalyticsPage() {
             <div className="analytics-metric">
               <span className="analytics-label">{t("连续复习")}</span>
               <p className="analytics-value">
-                {summary.streak_days}<span className="analytics-unit">{t("天")}</span>
+                {summary.streak_days}<span className="analytics-unit">{t(summary.streak_days === 1 ? "天_1" : "天")}</span>
               </p>
               <span className="analytics-dots" aria-hidden="true">
                 {Array.from({ length: 7 }, (_, index) => (
@@ -192,25 +192,8 @@ export default function AnalyticsPage() {
             </div>
             {summary.upcoming.length ? (
               <div className="analytics-spark">
-                <svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
-                  <defs>
-                    <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#2878e3" stopOpacity=".5" />
-                      <stop offset="100%" stopColor="#2878e3" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <polygon points={sparkArea} fill="url(#spark-fill)" />
-                  <polyline
-                    points={sparkLine}
-                    fill="none"
-                    stroke="#2878e3"
-                    strokeWidth="1.4"
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                </svg>
-                <div className="analytics-spark-labels">
+                
+                <div className="analytics-week">
                   {sparkPoints.map((point) => (
                     <span key={point.date} className={point.date === today ? "is-today" : ""}>
                       <strong>{point.count}</strong>
